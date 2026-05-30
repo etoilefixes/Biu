@@ -26,9 +26,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen gradient-bg">
+    <div className="flex items-center justify-center h-screen gradient-bg page-transition">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <GlassCard className="w-96 p-8">
+      <GlassCard className="w-96 p-8 animate-scale-in">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Biu</h1>
           <p className="text-gray-400 text-sm">登录你的账号</p>

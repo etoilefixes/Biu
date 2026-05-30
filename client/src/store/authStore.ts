@@ -11,9 +11,10 @@ interface AuthState {
   register: (username: string, password: string, nickname: string) => Promise<void>;
   logout: () => void;
   loadUser: () => Promise<void>;
+  updateProfileOptimistic: (data: { nickname?: string; avatar?: string }) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: localStorage.getItem('biu_token'),
   isAuthenticated: !!localStorage.getItem('biu_token'),
@@ -47,6 +48,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       localStorage.removeItem('biu_token');
       set({ user: null, token: null, isAuthenticated: false });
+    }
+  },
+
+  updateProfileOptimistic: async (data) => {
+    const previousUser = get().user;
+    if (previousUser) {
+      set({ user: { ...previousUser, ...data } });
+    }
+    try {
+      await api.put('/users/profile', data);
+    } catch {
+      set({ user: previousUser });
+      throw new Error('更新失败');
     }
   },
 }));

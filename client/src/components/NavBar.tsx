@@ -1,14 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import api from '../services/api';
 import Toast from './Toast';
 import { IconChat, IconContacts, IconEdit, IconLogout, IconCheck, IconX } from './Icons';
 
 export default function NavBar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loadUser, logout } = useAuthStore();
+  const { user, updateProfileOptimistic, logout } = useAuthStore();
   const [showProfile, setShowProfile] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
@@ -36,8 +35,7 @@ export default function NavBar() {
 
   const handleSave = async () => {
     try {
-      await api.put('/users/profile', { nickname });
-      await loadUser();
+      await updateProfileOptimistic({ nickname });
       setEditing(false);
       setToast({ message: '更新成功', type: 'success' });
     } catch (err: any) {
@@ -61,7 +59,7 @@ export default function NavBar() {
       {showProfile && (
         <div
           ref={profileRef}
-          className="fixed left-[72px] top-4 w-72 glass-strong rounded-2xl p-5 z-50 shadow-2xl"
+          className="fixed left-[72px] top-4 w-72 glass-strong rounded-2xl p-5 z-50 shadow-2xl animate-scale-in"
         >
           <div className="flex items-center gap-3 mb-5">
             <div className="w-12 h-12 rounded-xl bg-biu-primary flex items-center justify-center text-white text-lg font-bold">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChatStore } from '../store/chatStore';
+import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
 import NavBar from '../components/NavBar';
 import GlassCard from '../components/GlassCard';
@@ -12,7 +13,8 @@ export default function ContactsPage() {
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<User[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
-  const loadConversations = useChatStore((s) => s.loadConversations);
+  const { loadConversations, addConversationOptimistic, replaceTempConversation } = useChatStore();
+  const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
 
   const handleSearch = async () => {
@@ -25,21 +27,37 @@ export default function ContactsPage() {
     }
   };
 
-  const handleStartChat = async (targetUserId: string) => {
+  const handleStartChat = async (targetUser: User) => {
+    const tempId = `temp_conv_${Date.now()}`;
+    const tempConversation: any = {
+      id: tempId,
+      type: 'private',
+      name: null,
+      createdAt: new Date().toISOString(),
+      members: [
+        { userId: user?.id || '', user: { id: user?.id, nickname: user?.nickname, username: user?.username } },
+        { userId: targetUser.id, user: { id: targetUser.id, nickname: targetUser.nickname, username: targetUser.username } },
+      ],
+      _status: 'creating',
+    };
+
+    addConversationOptimistic(tempConversation);
+    navigate('/chat');
+
     try {
-      await api.post('/conversations', {
+      const res: any = await api.post('/conversations', {
         type: 'private',
-        memberIds: [targetUserId],
+        memberIds: [targetUser.id],
       });
+      replaceTempConversation(tempId, res.data);
       await loadConversations();
-      navigate('/chat');
     } catch (err: any) {
-      setToast({ message: err.message, type: 'error' });
+      setToast({ message: '创建会话失败', type: 'error' });
     }
   };
 
   return (
-    <div className="flex h-screen gradient-bg">
+    <div className="flex h-screen gradient-bg page-transition">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <NavBar />
       <div className="flex-1 p-8">
@@ -76,7 +94,7 @@ export default function ContactsPage() {
                 </div>
               </div>
               <button
-                onClick={() => handleStartChat(u.id)}
+                onClick={() => handleStartChat(u)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-biu-primary/20 text-biu-secondary hover:bg-biu-primary/40 transition text-sm"
               >
                 <IconChat size={14} /> 发消息

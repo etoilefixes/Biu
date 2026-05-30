@@ -66,3 +66,68 @@ body {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-message-in {
+  animation: messageSlideIn 0.2s ease-out;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-pulse-subtle {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.page-transition {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.resize-handle {
+  cursor: col-resize;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover {
+  background: rgba(108, 92, 231, 0.3);
+}
+
+.context-menu {
+  animation: scaleIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
