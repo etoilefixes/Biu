@@ -123,7 +123,7 @@ export default function NavBar() {
             ) : (
               <p
                 onClick={() => setEditing(true)}
-                className="text-white mt-1 text-sm cursor-pointer hover:text-biu-primary transition font-body"
+                className="text-white mt-1 text-sm cursor-pointer hover:text-biu-primary transition font-body border border-transparent px-3 py-2 rounded-lg"
               >
                 {user?.nickname}
               </p>
