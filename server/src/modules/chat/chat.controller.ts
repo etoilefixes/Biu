@@ -28,3 +28,12 @@ export async function detail(req: AuthRequest, res: Response) {
     res.status(403).json({ code: 403, message: err.message });
   }
 }
+
+export async function markRead(req: AuthRequest, res: Response) {
+  try {
+    await chatService.markAsRead(req.userId!, req.params.id);
+    res.json({ code: 200, message: '标记成功' });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}

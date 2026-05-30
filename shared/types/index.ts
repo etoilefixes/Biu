@@ -16,6 +16,8 @@ export interface Conversation {
   creatorId: string;
   createdAt: string;
   members: ConversationMember[];
+  lastMessage?: LastMessage | null;
+  unreadCount?: number;
 }
 
 export interface ConversationMember {
@@ -24,6 +26,14 @@ export interface ConversationMember {
   userId: string;
   joinedAt: string;
   user?: User;
+}
+
+export interface LastMessage {
+  id: string;
+  content: string;
+  senderId: string;
+  senderNickname?: string;
+  createdAt: string;
 }
 
 export interface Message {
@@ -72,4 +82,15 @@ export interface ApiError {
   code: number;
   message: string;
   details?: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  message: string | null;
+  createdAt: string;
+  fromUser?: User;
+  toUser?: User;
 }

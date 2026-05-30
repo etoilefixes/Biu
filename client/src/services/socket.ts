@@ -38,6 +38,11 @@ class SocketService {
     this.socket?.on('chat:typing', callback);
   }
 
+  onUnread(callback: (data: { conversationId: string; count: number }) => void) {
+    this.socket?.off('chat:unread');
+    this.socket?.on('chat:unread', callback);
+  }
+
   onUserOnline(callback: (data: { userId: string }) => void) {
     this.socket?.off('user:online');
     this.socket?.on('user:online', callback);
@@ -48,6 +53,11 @@ class SocketService {
     this.socket?.on('user:offline', callback);
   }
 
+  onFriendRequest(callback: (data: any) => void) {
+    this.socket?.off('friend:request');
+    this.socket?.on('friend:request', callback);
+  }
+
   offMessage() {
     this.socket?.off('chat:message');
   }
@@ -56,12 +66,24 @@ class SocketService {
     this.socket?.off('chat:typing');
   }
 
+  offUnread() {
+    this.socket?.off('chat:unread');
+  }
+
+  offFriendRequest() {
+    this.socket?.off('friend:request');
+  }
+
   sendMessage(data: { conversationId: string; content: string; type: string }) {
     this.socket?.emit('chat:send', data);
   }
 
   sendTyping(conversationId: string) {
     this.socket?.emit('chat:typing', { conversationId });
+  }
+
+  markRead(conversationId: string) {
+    this.socket?.emit('chat:mark-read', { conversationId });
   }
 
   private startHeartbeat() {

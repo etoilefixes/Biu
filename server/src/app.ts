@@ -10,6 +10,7 @@ import authRoutes from './modules/auth/auth.routes';
 import userRoutes from './modules/user/user.routes';
 import chatRoutes from './modules/chat/chat.routes';
 import messageRoutes from './modules/message/message.routes';
+import friendRoutes from './modules/friend/friend.routes';
 import { setupSocket } from './socket';
 
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/conversations', chatRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/friends', friendRoutes);
 
 app.use(errorHandler);
 

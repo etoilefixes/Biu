@@ -13,11 +13,13 @@ export default function ChatPage() {
     conversations,
     currentConversation,
     messages,
+    unreadMap,
     loadConversations,
     selectConversation,
     sendMessage,
     addMessage,
     removeMessage,
+    setUnread,
     setTyping,
   } = useChatStore();
   const [input, setInput] = useState('');
@@ -30,9 +32,11 @@ export default function ChatPage() {
     loadConversations();
     socketService.onMessage(addMessage);
     socketService.onTyping((data) => setTyping(data.conversationId, data.userId));
+    socketService.onUnread((data) => setUnread(data.conversationId, data.count));
     return () => {
       socketService.offMessage();
       socketService.offTyping();
+      socketService.offUnread();
     };
   }, []);
 
@@ -115,13 +119,14 @@ export default function ChatPage() {
           />
         </div>
         <div className="flex-1 overflow-y-auto">
-          {conversations.map((conv: any) => (
+          {conversations.map((conv) => (
             <ConversationItem
               key={conv.id}
               conversation={conv}
               active={currentConversation?.id === conv.id}
               onClick={() => selectConversation(conv)}
               currentUserId={user?.id || ''}
+              unreadCount={unreadMap[conv.id] || 0}
             />
           ))}
         </div>

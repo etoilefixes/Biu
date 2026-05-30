@@ -16,6 +16,11 @@ export async function getConversations(userId: string) {
           messages: {
             orderBy: { createdAt: 'desc' },
             take: 1,
+            include: {
+              sender: {
+                select: { nickname: true },
+              },
+            },
           },
         },
       },
@@ -23,31 +28,76 @@ export async function getConversations(userId: string) {
     orderBy: { conversation: { createdAt: 'desc' } },
   });
 
-  return memberships.map((m) => ({
-    id: m.conversation.id,
-    type: m.conversation.type,
-    name: m.conversation.name,
-    creatorId: m.conversation.creatorId,
-    createdAt: m.conversation.createdAt.toISOString(),
-    members: m.conversation.members.map((mem) => ({
-      id: mem.id,
-      conversationId: mem.conversationId,
-      userId: mem.userId,
-      joinedAt: mem.joinedAt.toISOString(),
-      user: {
-        ...mem.user,
-        status: mem.user.status as 'online' | 'offline' | 'away',
+  const result = [];
+  for (const m of memberships) {
+    const conv = m.conversation;
+    const lastMsg = conv.messages[0];
+
+    const unreadCount = await prisma.message.count({
+      where: {
+        conversationId: conv.id,
+        senderId: { not: userId },
+        createdAt: { gt: m.joinedAt },
+        NOT: {
+          id: {
+            in: await getReadMessageIds(userId, conv.id),
+          },
+        },
       },
-    })),
-    lastMessage: m.conversation.messages[0]
-      ? {
-          id: m.conversation.messages[0].id,
-          content: m.conversation.messages[0].content,
-          senderId: m.conversation.messages[0].senderId,
-          createdAt: m.conversation.messages[0].createdAt.toISOString(),
-        }
-      : null,
-  }));
+    });
+
+    result.push({
+      id: conv.id,
+      type: conv.type,
+      name: conv.name,
+      creatorId: conv.creatorId,
+      createdAt: conv.createdAt.toISOString(),
+      members: conv.members.map((mem) => ({
+        id: mem.id,
+        conversationId: mem.conversationId,
+        userId: mem.userId,
+        joinedAt: mem.joinedAt.toISOString(),
+        user: {
+          ...mem.user,
+          status: mem.user.status as 'online' | 'offline' | 'away',
+        },
+      })),
+      lastMessage: lastMsg
+        ? {
+            id: lastMsg.id,
+            content: lastMsg.content,
+            senderId: lastMsg.senderId,
+            senderNickname: lastMsg.sender.nickname,
+            createdAt: lastMsg.createdAt.toISOString(),
+          }
+        : null,
+      unreadCount,
+    });
+  }
+
+  return result;
+}
+
+async function getReadMessageIds(userId: string, conversationId: string): Promise<string[]> {
+  const key = `read:${userId}:${conversationId}`;
+  const data = await import('../../config/redis').then((m) => m.redis.get(key));
+  return data ? JSON.parse(data) : [];
+}
+
+export async function markAsRead(userId: string, conversationId: string) {
+  const lastMessage = await prisma.message.findFirst({
+    where: { conversationId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  });
+
+  if (lastMessage) {
+    const { redis } = await import('../../config/redis');
+    const key = `read:${userId}:${conversationId}`;
+    await redis.set(key, JSON.stringify([lastMessage.id]));
+  }
+
+  return { success: true };
 }
 
 export async function createConversation(

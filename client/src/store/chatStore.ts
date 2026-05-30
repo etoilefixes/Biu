@@ -1,13 +1,18 @@
 import { create } from 'zustand';
-import { Conversation, Message } from '@biu/shared';
+import { Conversation, Message, LastMessage } from '@biu/shared';
 import api from '../services/api';
 import { socketService } from '../services/socket';
+
+interface UnreadMap {
+  [conversationId: string]: number;
+}
 
 interface ChatState {
   conversations: Conversation[];
   currentConversation: Conversation | null;
   messages: Message[];
   typingUsers: Map<string, string>;
+  unreadMap: UnreadMap;
   loadConversations: () => Promise<void>;
   selectConversation: (conversation: Conversation) => Promise<void>;
   sendMessage: (content: string, type?: string, senderId?: string) => void;
@@ -17,6 +22,9 @@ interface ChatState {
   replaceTempMessage: (tempId: string, realMessage: Message) => void;
   addConversationOptimistic: (conversation: Conversation) => void;
   replaceTempConversation: (tempId: string, realConversation: Conversation) => void;
+  updateConversationLastMessage: (conversationId: string, message: Message) => void;
+  setUnread: (conversationId: string, count: number) => void;
+  clearUnread: (conversationId: string) => void;
   setTyping: (conversationId: string, userId: string) => void;
   clearTyping: (conversationId: string) => void;
 }
@@ -28,16 +36,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentConversation: null,
   messages: [],
   typingUsers: new Map(),
+  unreadMap: {},
 
   loadConversations: async () => {
     const res: any = await api.get('/conversations');
-    set({ conversations: res.data });
+    const conversations: Conversation[] = res.data;
+    const unreadMap: UnreadMap = {};
+    conversations.forEach((c: any) => {
+      if (c.unreadCount > 0) {
+        unreadMap[c.id] = c.unreadCount;
+      }
+    });
+    set({ conversations, unreadMap });
   },
 
   selectConversation: async (conversation) => {
     set({ currentConversation: conversation, messages: [] });
     const res: any = await api.get(`/messages/${conversation.id}`);
     set({ messages: res.data });
+
+    get().clearUnread(conversation.id);
+    api.put(`/conversations/${conversation.id}/read`).catch(() => {});
+    socketService.markRead(conversation.id);
   },
 
   sendMessage: (content, type = 'text', senderId) => {
@@ -56,6 +76,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } as any;
 
     set((state) => ({ messages: [...state.messages, optimisticMessage] }));
+
+    get().updateConversationLastMessage(currentConversation.id, optimisticMessage);
 
     socketService.sendMessage({
       conversationId: currentConversation.id,
@@ -84,6 +106,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } else {
       set((state) => ({ messages: [...state.messages, message] }));
     }
+
+    get().updateConversationLastMessage(message.conversationId, message);
   },
 
   removeMessage: (tempId) => {
@@ -121,6 +145,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ? realConversation
           : state.currentConversation,
     }));
+  },
+
+  updateConversationLastMessage: (conversationId, message) => {
+    set((state) => {
+      const conversations = state.conversations.map((c) => {
+        if (c.id !== conversationId) return c;
+        const lastMessage: LastMessage = {
+          id: message.id,
+          content: message.content,
+          senderId: message.senderId,
+          senderNickname: (message as any).sender?.nickname,
+          createdAt: message.createdAt,
+        };
+        return { ...c, lastMessage };
+      });
+
+      const sorted = [...conversations].sort((a, b) => {
+        const aTime = a.lastMessage?.createdAt || a.createdAt;
+        const bTime = b.lastMessage?.createdAt || b.createdAt;
+        return new Date(bTime).getTime() - new Date(aTime).getTime();
+      });
+
+      return { conversations: sorted };
+    });
+  },
+
+  setUnread: (conversationId, count) => {
+    set((state) => ({
+      unreadMap: { ...state.unreadMap, [conversationId]: count },
+    }));
+  },
+
+  clearUnread: (conversationId) => {
+    set((state) => {
+      const newMap = { ...state.unreadMap };
+      delete newMap[conversationId];
+      return { unreadMap: newMap };
+    });
   },
 
   setTyping: (conversationId, userId) => {
