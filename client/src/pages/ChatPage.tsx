@@ -5,7 +5,7 @@ import { socketService } from '../services/socket';
 import ConversationItem from '../components/ConversationItem';
 import ChatBubble from '../components/ChatBubble';
 import Toast from '../components/Toast';
-import { IconSearch, IconSend } from '../components/Icons';
+import { IconSearch, IconSend, IconChat } from '../components/Icons';
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user);
