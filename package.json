@@ -1,0 +1,5 @@
+{
+  "name": "biu",
+  "private": true,
+  "workspaces": ["shared", "server", "client"]
+}
