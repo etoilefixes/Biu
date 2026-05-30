@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 
 let mainWindow: BrowserWindow | null = null;
@@ -10,7 +10,8 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     frame: false,
-    backgroundColor: '#0A0A1A',
+    title: 'Biu',
+    backgroundColor: '#070B14',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -24,6 +25,12 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 }
+
+ipcMain.on('set-title', (_event, title: string) => {
+  if (mainWindow) {
+    mainWindow.setTitle(title);
+  }
+});
 
 app.whenReady().then(createWindow);
 
