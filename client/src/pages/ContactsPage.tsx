@@ -88,7 +88,7 @@ export default function ContactsPage() {
                 </div>
                 <div>
                   <p className="text-white font-medium font-display">{u.nickname}</p>
-                  <p className="text-gray-600 text-xs font-body">@{u.username}</p>
+                  <p className="text-biu-primary/60 text-xs font-display">{u.biuId}</p>
                 </div>
               </div>
               <button

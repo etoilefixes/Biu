@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import Toast from '../components/Toast';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
+  const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
@@ -15,7 +15,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(username, password);
+      await login(account, password);
       navigate('/chat');
     } catch (err: any) {
       setToast({ message: err.message, type: 'error' });
@@ -38,12 +38,12 @@ export default function LoginPage() {
         <div className="glass-strong rounded-2xl p-8 shadow-glow">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="animate-slide-up stagger-1" style={{ opacity: 0, animationFillMode: 'forwards' }}>
-              <label className="text-gray-400 text-xs font-medium mb-1.5 block">用户名</label>
+              <label className="text-gray-400 text-xs font-medium mb-1.5 block">用户名 / Biu号</label>
               <input
                 type="text"
-                placeholder="输入用户名"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="输入用户名或 Biu号"
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body"
               />
             </div>

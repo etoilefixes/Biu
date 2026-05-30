@@ -9,6 +9,7 @@ datasource db {
 
 model User {
   id           String   @id @default(uuid())
+  biuId        String   @unique @db.VarChar(20)
   username     String   @unique @db.VarChar(50)
   passwordHash String   @map("password_hash") @db.VarChar(255)
   nickname     String   @db.VarChar(100)

@@ -7,7 +7,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (account: string, password: string) => Promise<void>;
   register: (username: string, password: string, nickname: string) => Promise<void>;
   logout: () => void;
   loadUser: () => Promise<void>;
@@ -19,8 +19,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: localStorage.getItem('biu_token'),
   isAuthenticated: !!localStorage.getItem('biu_token'),
 
-  login: async (username, password) => {
-    const res: any = await api.post('/auth/login', { username, password });
+  login: async (account, password) => {
+    const res: any = await api.post('/auth/login', { account, password });
     const { token, user } = res.data;
     localStorage.setItem('biu_token', token);
     socketService.connect(token);

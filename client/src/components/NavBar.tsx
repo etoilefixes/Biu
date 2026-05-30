@@ -95,7 +95,7 @@ export default function NavBar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-medium font-display truncate">{user?.nickname}</p>
-              <p className="text-gray-500 text-xs">@{user?.username}</p>
+              <p className="text-biu-primary/70 text-xs font-display">{user?.biuId}</p>
             </div>
           </div>
           <div className="mb-4 group">

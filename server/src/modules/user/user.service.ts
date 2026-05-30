@@ -6,11 +6,13 @@ export async function searchUsers(keyword: string, currentUserId: string) {
       OR: [
         { username: { contains: keyword, mode: 'insensitive' } },
         { nickname: { contains: keyword, mode: 'insensitive' } },
+        { biuId: { contains: keyword.toUpperCase(), mode: 'insensitive' } },
       ],
       NOT: { id: currentUserId },
     },
     select: {
       id: true,
+      biuId: true,
       username: true,
       nickname: true,
       avatar: true,
@@ -35,6 +37,7 @@ export async function updateProfile(userId: string, data: { nickname?: string; a
     data,
     select: {
       id: true,
+      biuId: true,
       username: true,
       nickname: true,
       avatar: true,

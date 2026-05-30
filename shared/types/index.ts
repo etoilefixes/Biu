@@ -1,5 +1,6 @@
 export interface User {
   id: string;
+  biuId: string;
   username: string;
   nickname: string;
   avatar: string | null;
@@ -57,7 +58,7 @@ export interface RegisterRequest {
 }
 
 export interface LoginRequest {
-  username: string;
+  account: string;
   password: string;
 }
 
