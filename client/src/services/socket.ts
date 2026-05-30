@@ -29,19 +29,31 @@ class SocketService {
   }
 
   onMessage(callback: (message: ChatReceiveMessage) => void) {
+    this.socket?.off('chat:message');
     this.socket?.on('chat:message', callback);
   }
 
   onTyping(callback: (data: { conversationId: string; userId: string }) => void) {
+    this.socket?.off('chat:typing');
     this.socket?.on('chat:typing', callback);
   }
 
   onUserOnline(callback: (data: { userId: string }) => void) {
+    this.socket?.off('user:online');
     this.socket?.on('user:online', callback);
   }
 
   onUserOffline(callback: (data: { userId: string }) => void) {
+    this.socket?.off('user:offline');
     this.socket?.on('user:offline', callback);
+  }
+
+  offMessage() {
+    this.socket?.off('chat:message');
+  }
+
+  offTyping() {
+    this.socket?.off('chat:typing');
   }
 
   sendMessage(data: { conversationId: string; content: string; type: string }) {

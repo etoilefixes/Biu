@@ -30,6 +30,10 @@ export default function ChatPage() {
     loadConversations();
     socketService.onMessage(addMessage);
     socketService.onTyping((data) => setTyping(data.conversationId, data.userId));
+    return () => {
+      socketService.offMessage();
+      socketService.offTyping();
+    };
   }, []);
 
   useEffect(() => {

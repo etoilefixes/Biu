@@ -66,7 +66,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   addMessage: (message) => {
     const { messages } = get();
-    const isOptimistic = messages.some(
+    const exists = messages.some((m) => m.id === message.id);
+    if (exists) return;
+
+    const optimisticIndex = messages.findIndex(
       (m) =>
         (m as any)._status === 'sending' &&
         m.conversationId === message.conversationId &&
@@ -74,16 +77,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         m.senderId === message.senderId
     );
 
-    if (isOptimistic) {
+    if (optimisticIndex !== -1) {
       set({
-        messages: messages.map((m) =>
-          (m as any)._status === 'sending' &&
-          m.conversationId === message.conversationId &&
-          m.content === message.content &&
-          m.senderId === message.senderId
-            ? message
-            : m
-        ),
+        messages: messages.map((m, i) => (i === optimisticIndex ? message : m)),
       });
     } else {
       set((state) => ({ messages: [...state.messages, message] }));
