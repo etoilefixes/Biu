@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import Toast from './Toast';
-import { IconChat, IconContacts, IconEdit, IconLogout, IconCheck, IconX } from './Icons';
+import { IconChat, IconContacts, IconLogout, IconEdit } from './Icons';
 
 export default function NavBar() {
   const navigate = useNavigate();
@@ -14,6 +14,14 @@ export default function NavBar() {
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -23,23 +31,43 @@ export default function NavBar() {
         avatarRef.current &&
         !avatarRef.current.contains(e.target as Node)
       ) {
+        if (editing) {
+          handleSave();
+        }
         setShowProfile(false);
-        setEditing(false);
       }
     }
     if (showProfile) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showProfile]);
+  }, [showProfile, editing, nickname]);
 
   const handleSave = async () => {
-    try {
-      await updateProfileOptimistic({ nickname });
+    const trimmed = nickname.trim();
+    if (!trimmed || trimmed === user?.nickname) {
+      setNickname(user?.nickname || '');
       setEditing(false);
-      setToast({ message: '更新成功', type: 'success' });
+      return;
+    }
+    try {
+      await updateProfileOptimistic({ nickname: trimmed });
+      setEditing(false);
+      setToast({ message: '昵称已更新', type: 'success' });
     } catch (err: any) {
+      setNickname(user?.nickname || '');
+      setEditing(false);
       setToast({ message: err.message, type: 'error' });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setNickname(user?.nickname || '');
+      setEditing(false);
     }
   };
 
@@ -70,42 +98,35 @@ export default function NavBar() {
               <p className="text-gray-500 text-xs">@{user?.username}</p>
             </div>
           </div>
-          <div className="mb-4">
-            <label className="text-gray-400 text-xs">昵称</label>
+          <div className="mb-4 group">
+            <div className="flex items-center justify-between">
+              <label className="text-gray-400 text-xs">昵称</label>
+              {!editing && (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition"
+                >
+                  <IconEdit size={12} />
+                </button>
+              )}
+            </div>
             {editing ? (
               <input
+                ref={inputRef}
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
                 className="w-full mt-1 px-3 py-2 rounded-lg glass-input text-white text-sm outline-none focus:border-biu-primary transition"
               />
             ) : (
-              <p className="text-white mt-1 text-sm">{user?.nickname}</p>
-            )}
-          </div>
-          <div className="flex gap-2 mb-4">
-            {editing ? (
-              <>
-                <button
-                  onClick={handleSave}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-biu-primary hover:bg-biu-secondary text-white text-sm transition"
-                >
-                  <IconCheck size={14} /> 保存
-                </button>
-                <button
-                  onClick={() => setEditing(false)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass text-gray-400 hover:text-white text-sm transition"
-                >
-                  <IconX size={14} /> 取消
-                </button>
-              </>
-            ) : (
-              <button
+              <p
                 onClick={() => setEditing(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-biu-primary/20 text-biu-secondary hover:bg-biu-primary/40 text-sm transition"
+                className="text-white mt-1 text-sm cursor-pointer hover:text-biu-secondary transition"
               >
-                <IconEdit size={14} /> 编辑资料
-              </button>
+                {user?.nickname}
+              </p>
             )}
           </div>
           <div className="pt-4 border-t border-white/10">

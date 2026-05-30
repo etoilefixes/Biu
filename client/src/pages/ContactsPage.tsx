@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
-import NavBar from '../components/NavBar';
 import GlassCard from '../components/GlassCard';
 import Toast from '../components/Toast';
 import { IconSearch, IconChat } from '../components/Icons';
@@ -57,9 +56,8 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="flex h-screen gradient-bg page-transition">
+    <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <NavBar />
       <div className="flex-1 p-8">
         <h1 className="text-2xl font-bold text-white mb-6">联系人</h1>
         <div className="flex gap-3 mb-6">
@@ -103,6 +101,6 @@ export default function ContactsPage() {
           ))}
         </div>
       </div>
-    </div>
+    </>
   );
 }

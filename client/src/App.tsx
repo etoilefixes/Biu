@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ChatPage from './pages/ChatPage';
 import ContactsPage from './pages/ContactsPage';
+import AppLayout from './layouts/AppLayout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -30,21 +31,15 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
-            path="/chat"
             element={
               <PrivateRoute>
-                <ChatPage />
+                <AppLayout />
               </PrivateRoute>
             }
-          />
-          <Route
-            path="/contacts"
-            element={
-              <PrivateRoute>
-                <ContactsPage />
-              </PrivateRoute>
-            }
-          />
+          >
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/contacts" element={<ContactsPage />} />
+          </Route>
           <Route path="*" element={<Navigate to={isAuthenticated ? '/chat' : '/login'} />} />
         </Routes>
       </BrowserRouter>

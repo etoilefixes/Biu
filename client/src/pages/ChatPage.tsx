@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { socketService } from '../services/socket';
-import NavBar from '../components/NavBar';
 import ConversationItem from '../components/ConversationItem';
 import ChatBubble from '../components/ChatBubble';
 import Toast from '../components/Toast';
@@ -97,9 +96,8 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen gradient-bg page-transition">
+    <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <NavBar />
       <div
         className="glass border-r border-white/5 flex flex-col shrink-0"
         style={{ width: sidebarWidth }}
@@ -173,6 +171,6 @@ export default function ChatPage() {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
