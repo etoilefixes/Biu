@@ -10,7 +10,7 @@ export default function ChatBubble({ message, isSelf }: Props) {
   return (
     <div className={`flex ${isSelf ? 'justify-end' : 'justify-start'} mb-3`}>
       {!isSelf && (
-        <div className="w-8 h-8 rounded-full bg-biu-secondary/30 flex items-center justify-center text-white text-xs font-bold mr-2 shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-biu-secondary/30 flex items-center justify-center text-white text-xs font-bold mr-2 shrink-0">
           {message.sender?.nickname?.[0] || '?'}
         </div>
       )}

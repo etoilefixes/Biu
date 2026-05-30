@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
 import Toast from './Toast';
+import { IconChat, IconContacts, IconEdit, IconLogout, IconCheck, IconX } from './Icons';
 
 export default function NavBar() {
   const navigate = useNavigate();
@@ -50,8 +51,8 @@ export default function NavBar() {
   };
 
   const items = [
-    { path: '/chat', icon: '💬', label: '消息' },
-    { path: '/contacts', icon: '📋', label: '联系人' },
+    { path: '/chat', icon: <IconChat size={20} />, label: '消息' },
+    { path: '/contacts', icon: <IconContacts size={20} />, label: '联系人' },
   ];
 
   return (
@@ -89,32 +90,32 @@ export default function NavBar() {
               <>
                 <button
                   onClick={handleSave}
-                  className="px-3 py-1.5 rounded-lg bg-biu-primary hover:bg-biu-secondary text-white text-sm transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-biu-primary hover:bg-biu-secondary text-white text-sm transition"
                 >
-                  保存
+                  <IconCheck size={14} /> 保存
                 </button>
                 <button
                   onClick={() => setEditing(false)}
-                  className="px-3 py-1.5 rounded-lg glass text-gray-400 hover:text-white text-sm transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass text-gray-400 hover:text-white text-sm transition"
                 >
-                  取消
+                  <IconX size={14} /> 取消
                 </button>
               </>
             ) : (
               <button
                 onClick={() => setEditing(true)}
-                className="px-3 py-1.5 rounded-lg bg-biu-primary/20 text-biu-secondary hover:bg-biu-primary/40 text-sm transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-biu-primary/20 text-biu-secondary hover:bg-biu-primary/40 text-sm transition"
               >
-                编辑资料
+                <IconEdit size={14} /> 编辑资料
               </button>
             )}
           </div>
           <div className="pt-4 border-t border-white/10">
             <button
               onClick={handleLogout}
-              className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/40 text-sm transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/40 text-sm transition"
             >
-              退出登录
+              <IconLogout size={14} /> 退出登录
             </button>
           </div>
         </div>
@@ -133,7 +134,7 @@ export default function NavBar() {
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition ${
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition ${
               location.pathname === item.path
                 ? 'bg-biu-primary/30 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'

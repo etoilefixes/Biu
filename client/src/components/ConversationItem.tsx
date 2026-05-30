@@ -26,7 +26,7 @@ export default function ConversationItem({ conversation, active, onClick, curren
         active ? 'bg-biu-primary/20' : 'hover:bg-white/5'
       }`}
     >
-      <div className="w-10 h-10 rounded-full bg-biu-secondary/30 flex items-center justify-center text-white text-sm font-bold shrink-0">
+      <div className="w-10 h-10 rounded-xl bg-biu-secondary/30 flex items-center justify-center text-white text-sm font-bold shrink-0">
         {avatar}
       </div>
       <div className="flex-1 min-w-0">

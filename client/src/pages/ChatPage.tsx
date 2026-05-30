@@ -5,6 +5,7 @@ import { socketService } from '../services/socket';
 import NavBar from '../components/NavBar';
 import ConversationItem from '../components/ConversationItem';
 import ChatBubble from '../components/ChatBubble';
+import { IconSearch, IconSend } from '../components/Icons';
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user);
@@ -54,11 +55,12 @@ export default function ChatPage() {
     <div className="flex h-screen gradient-bg">
       <NavBar />
       <div className="w-[280px] glass border-r border-white/5 flex flex-col">
-        <div className="p-3">
+        <div className="p-3 relative">
+          <IconSearch size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             type="text"
             placeholder="搜索会话..."
-            className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-500 outline-none"
+            className="w-full pl-8 pr-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-500 outline-none"
           />
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -98,9 +100,9 @@ export default function ChatPage() {
                 <button
                   onClick={handleSend}
                   disabled={!input.trim()}
-                  className="px-6 py-3 rounded-xl bg-biu-primary hover:bg-biu-secondary text-white font-medium transition disabled:opacity-50"
+                  className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-secondary text-white transition disabled:opacity-50"
                 >
-                  发送
+                  <IconSend size={18} />
                 </button>
               </div>
             </div>
