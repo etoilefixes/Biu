@@ -8,7 +8,7 @@ interface GlassCardProps {
 
 export default function GlassCard({ children, className = '', strong = false }: GlassCardProps) {
   return (
-    <div className={`${strong ? 'glass-strong' : 'glass'} rounded-2xl shadow-lg ${className}`}>
+    <div className={`${strong ? 'glass-strong' : 'glass'} rounded-2xl transition-all duration-200 hover:border-white/10 ${className}`}>
       {children}
     </div>
   );

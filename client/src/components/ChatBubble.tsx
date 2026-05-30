@@ -39,32 +39,32 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
   return (
     <>
       <div
-        className={`flex ${isSelf ? 'justify-end' : 'justify-start'} mb-3 animate-message-in`}
+        className={`flex ${isSelf ? 'justify-end' : 'justify-start'} mb-4 animate-message-in`}
         onContextMenu={handleContextMenu}
       >
         {!isSelf && (
-          <div className="w-8 h-8 rounded-lg bg-biu-secondary/30 flex items-center justify-center text-white text-xs font-bold mr-2 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-biu-secondary/40 to-biu-secondary/20 flex items-center justify-center text-white text-xs font-display font-600 mr-2.5 shrink-0">
             {message.sender?.nickname?.[0] || '?'}
           </div>
         )}
         <div className="max-w-[60%]">
           {!isSelf && (
-            <p className="text-gray-500 text-xs mb-1">{message.sender?.nickname}</p>
+            <p className="text-gray-500 text-xs mb-1.5 font-body">{message.sender?.nickname}</p>
           )}
-          <div className={`px-4 py-2 ${isSelf ? 'bubble-self' : 'bubble-other'} ${status === 'failed' ? 'opacity-60' : ''}`}>
-            <p className="text-white text-sm break-words">{message.content}</p>
+          <div className={`px-4 py-2.5 ${isSelf ? 'bubble-self' : 'bubble-other'} ${status === 'failed' ? 'opacity-60' : ''}`}>
+            <p className="text-sm break-words font-body leading-relaxed">{message.content}</p>
           </div>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-gray-600 text-xs">
+          <div className="flex items-center gap-2 mt-1.5">
+            <p className="text-gray-600 text-xs font-body">
               {new Date(message.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
             </p>
             {status === 'sending' && (
-              <span className="text-gray-500 text-xs animate-pulse-subtle">发送中</span>
+              <span className="text-gray-500 text-xs animate-pulse-subtle font-body">发送中</span>
             )}
             {status === 'failed' && (
               <button
                 onClick={handleRetry}
-                className="text-red-400 text-xs hover:text-red-300 transition"
+                className="text-biu-accent text-xs hover:text-biu-accent/80 transition font-body"
               >
                 发送失败，点击重试
               </button>
@@ -76,19 +76,19 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
           <div
-            className="fixed z-50 glass-strong rounded-xl py-1 min-w-[120px] context-menu"
+            className="fixed z-50 glass-strong rounded-xl py-1.5 min-w-[120px] context-menu shadow-glow"
             style={{ left: menuPos.x, top: menuPos.y }}
           >
             <button
               onClick={handleCopy}
-              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition"
+              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/5 transition font-body"
             >
               复制
             </button>
             {isSelf && (
               <button
                 onClick={handleDelete}
-                className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-white/10 transition"
+                className="w-full px-4 py-2 text-left text-sm text-biu-accent hover:bg-white/5 transition font-body"
               >
                 删除
               </button>

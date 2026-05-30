@@ -87,24 +87,24 @@ export default function NavBar() {
       {showProfile && (
         <div
           ref={profileRef}
-          className="fixed left-[72px] top-4 w-72 glass-strong rounded-2xl p-5 z-50 shadow-2xl animate-scale-in"
+          className="fixed left-[76px] top-4 w-72 glass-strong rounded-2xl p-5 z-50 shadow-2xl animate-scale-in shadow-glow"
         >
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-12 h-12 rounded-xl bg-biu-primary flex items-center justify-center text-white text-lg font-bold">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-biu-primary to-biu-secondary flex items-center justify-center text-white text-lg font-display font-700">
               {user?.nickname?.[0] || 'B'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium truncate">{user?.nickname}</p>
+              <p className="text-white font-medium font-display truncate">{user?.nickname}</p>
               <p className="text-gray-500 text-xs">@{user?.username}</p>
             </div>
           </div>
           <div className="mb-4 group">
             <div className="flex items-center justify-between">
-              <label className="text-gray-400 text-xs">昵称</label>
+              <label className="text-gray-500 text-xs font-medium">昵称</label>
               {!editing && (
                 <button
                   onClick={() => setEditing(true)}
-                  className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition"
+                  className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-biu-primary transition"
                 >
                   <IconEdit size={12} />
                 </button>
@@ -118,33 +118,33 @@ export default function NavBar() {
                 onChange={(e) => setNickname(e.target.value)}
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
-                className="w-full mt-1 px-3 py-2 rounded-lg glass-input text-white text-sm outline-none focus:border-biu-primary transition"
+                className="w-full mt-1 px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body"
               />
             ) : (
               <p
                 onClick={() => setEditing(true)}
-                className="text-white mt-1 text-sm cursor-pointer hover:text-biu-secondary transition"
+                className="text-white mt-1 text-sm cursor-pointer hover:text-biu-primary transition font-body"
               >
                 {user?.nickname}
               </p>
             )}
           </div>
-          <div className="pt-4 border-t border-white/10">
+          <div className="pt-4 border-t border-white/5">
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/40 text-sm transition"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-biu-accent/10 text-biu-accent hover:bg-biu-accent/20 transition text-sm font-body"
             >
               <IconLogout size={14} /> 退出登录
             </button>
           </div>
         </div>
       )}
-      <div className="w-[60px] h-full glass flex flex-col items-center py-4 gap-6">
+      <div className="w-[60px] h-full glass flex flex-col items-center py-4 gap-2">
         <button
           ref={avatarRef}
           onClick={() => setShowProfile(!showProfile)}
-          className={`w-10 h-10 rounded-xl bg-biu-primary flex items-center justify-center text-white text-sm font-bold mb-4 transition ${
-            showProfile ? 'ring-2 ring-biu-secondary' : 'hover:ring-2 hover:ring-biu-secondary/50'
+          className={`w-10 h-10 rounded-xl bg-gradient-to-br from-biu-primary to-biu-secondary flex items-center justify-center text-white text-sm font-display font-700 mb-4 transition-all duration-200 ${
+            showProfile ? 'ring-2 ring-biu-primary shadow-glow' : 'hover:shadow-glow hover:scale-105'
           }`}
         >
           {user?.nickname?.[0] || 'B'}
@@ -153,10 +153,10 @@ export default function NavBar() {
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition ${
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
               location.pathname === item.path
-                ? 'bg-biu-primary/30 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
+                : 'text-gray-500 hover:text-white hover:bg-white/5'
             }`}
             title={item.label}
           >

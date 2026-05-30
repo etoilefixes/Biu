@@ -5,15 +5,28 @@ module.exports = {
     extend: {
       colors: {
         biu: {
-          primary: '#6C5CE7',
-          secondary: '#A29BFE',
-          dark: '#0A0A1A',
-          surface: '#1A1A2E',
-          'surface-light': '#25253E',
+          primary: '#00D4AA',
+          'primary-dim': '#00A888',
+          secondary: '#6366F1',
+          accent: '#FF3D71',
+          dark: '#070B14',
+          'dark-alt': '#0D1321',
+          surface: '#111827',
+          'surface-light': '#1E293B',
+          'surface-hover': '#263348',
         },
+      },
+      fontFamily: {
+        display: ['Sora', 'sans-serif'],
+        body: ['DM Sans', 'sans-serif'],
       },
       backdropBlur: {
         glass: '20px',
+      },
+      boxShadow: {
+        glow: '0 0 20px rgba(0, 212, 170, 0.15)',
+        'glow-accent': '0 0 20px rgba(255, 61, 113, 0.15)',
+        'glow-strong': '0 0 40px rgba(0, 212, 170, 0.25)',
       },
     },
   },

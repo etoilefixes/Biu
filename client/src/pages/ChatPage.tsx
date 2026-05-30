@@ -103,11 +103,11 @@ export default function ChatPage() {
         style={{ width: sidebarWidth }}
       >
         <div className="p-3 relative">
-          <IconSearch size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500" />
+          <IconSearch size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
           <input
             type="text"
             placeholder="搜索会话..."
-            className="w-full pl-8 pr-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-500 outline-none"
+            className="w-full pl-8 pr-3 py-2.5 rounded-xl glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
           />
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -123,14 +123,14 @@ export default function ChatPage() {
         </div>
       </div>
       <div
-        className="w-1 shrink-0 resize-handle hover:bg-biu-primary/30 active:bg-biu-primary/50"
+        className="w-0.5 shrink-0 resize-handle hover:bg-biu-primary/30 active:bg-biu-primary/50"
         onMouseDown={handleMouseDown}
       />
       <div className="flex-1 flex flex-col min-w-0">
         {currentConversation ? (
           <>
             <div className="h-14 glass-strong flex items-center px-6 border-b border-white/5">
-              <h2 className="text-white font-medium">{convDisplayName(currentConversation)}</h2>
+              <h2 className="text-white font-display font-600 text-sm tracking-wide">{convDisplayName(currentConversation)}</h2>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {messages.map((msg) => (
@@ -153,12 +153,12 @@ export default function ChatPage() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="输入消息..."
-                  className="flex-1 px-4 py-3 rounded-xl glass-input text-white placeholder-gray-500 outline-none focus:border-biu-primary transition"
+                  className="flex-1 px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body"
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim()}
-                  className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-secondary text-white transition disabled:opacity-50"
+                  className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 disabled:opacity-30 hover:shadow-glow"
                 >
                   <IconSend size={18} />
                 </button>
@@ -166,8 +166,13 @@ export default function ChatPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500 animate-fade-in">
-            选择一个会话开始聊天
+          <div className="flex-1 flex items-center justify-center animate-fade-in">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-2xl bg-biu-primary/10 flex items-center justify-center mx-auto mb-4 animate-float">
+                <IconChat size={28} className="text-biu-primary" />
+              </div>
+              <p className="text-gray-500 text-sm font-body">选择一个会话开始聊天</p>
+            </div>
           </div>
         )}
       </div>
