@@ -1,5 +1,7 @@
 import { Server, Socket } from 'socket.io';
+import jwt from 'jsonwebtoken';
 import { redis } from '../config/redis';
+import { config } from '../config';
 import { registerChatHandlers } from './chat.handler';
 import { registerUserHandlers } from './user.handler';
 
@@ -23,26 +25,24 @@ export async function setupSocket(io: Server) {
     }
 
     try {
-      const userId = socket.handshake.auth.userId || (socket as any).userId;
-      if (userId) {
-        await redis.set(`user:socket:${userId}`, socket.id);
-        await redis.set(`user:status:${userId}`, 'online');
-        io.emit('user:online', { userId });
-        (socket as any).userId = userId;
-      }
+      const decoded = jwt.verify(token, config.jwtSecret) as { userId: string };
+      const userId = decoded.userId;
+
+      socket.data.userId = userId;
+      await redis.set(`user:socket:${userId}`, socket.id);
+      await redis.set(`user:status:${userId}`, 'online');
+      io.emit('user:online', { userId });
 
       registerChatHandlers(io, socket);
       registerUserHandlers(io, socket);
 
       socket.on('disconnect', async () => {
-        if (userId) {
-          await redis.del(`user:socket:${userId}`);
-          await redis.set(`user:status:${userId}`, 'offline');
-          io.emit('user:offline', { userId });
-        }
+        await redis.del(`user:socket:${userId}`);
+        await redis.set(`user:status:${userId}`, 'offline');
+        io.emit('user:offline', { userId });
       });
     } catch (err) {
-      console.error('Socket connection error:', err);
+      console.error('Socket auth error:', err);
       socket.disconnect();
     }
   });
