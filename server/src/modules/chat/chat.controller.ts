@@ -48,3 +48,13 @@ export async function markAllRead(req: AuthRequest, res: Response) {
     res.status(400).json({ code: 400, message: err.message });
   }
 }
+
+export async function remove(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    await chatService.deleteConversation(req.userId!, id);
+    res.json({ code: 200, message: '删除成功' });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}

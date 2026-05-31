@@ -9,5 +9,6 @@ router.post('/', authMiddleware, chatController.create);
 router.put('/read-all', authMiddleware, chatController.markAllRead);
 router.get('/:id', authMiddleware, chatController.detail);
 router.put('/:id/read', authMiddleware, chatController.markRead);
+router.delete('/:id', authMiddleware, chatController.remove);
 
 export default router;

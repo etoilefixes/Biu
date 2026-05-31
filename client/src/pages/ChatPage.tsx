@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { useFriendStore } from '../store/friendStore';
@@ -28,6 +29,7 @@ export default function ChatPage() {
     addConversationOptimistic,
     replaceTempConversation,
     markAllRead,
+    deleteConversation,
   } = useChatStore();
   const { friends, setFriends } = useFriendStore();
   const [input, setInput] = useState('');
@@ -407,16 +409,27 @@ export default function ChatPage() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {filteredConversations.map((conv) => (
-            <ConversationItem
-              key={conv.id}
-              conversation={conv}
-              active={currentConversation?.id === conv.id}
-              onClick={() => selectConversation(conv)}
-              currentUserId={user?.id || ''}
-              unreadCount={unreadMap[conv.id] || 0}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {filteredConversations.map((conv) => (
+              <motion.div
+                key={conv.id}
+                layout
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ layout: { type: 'spring', stiffness: 350, damping: 35 }, opacity: { duration: 0.2 }, height: { duration: 0.2 } }}
+              >
+                <ConversationItem
+                  conversation={conv}
+                  active={currentConversation?.id === conv.id}
+                  onClick={() => selectConversation(conv)}
+                  currentUserId={user?.id || ''}
+                  unreadCount={unreadMap[conv.id] || 0}
+                  onDelete={deleteConversation}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       </div>
       <div

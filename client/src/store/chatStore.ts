@@ -27,6 +27,7 @@ interface ChatState {
   setUnread: (conversationId: string, count: number) => void;
   clearUnread: (conversationId: string) => void;
   markAllRead: () => void;
+  deleteConversation: (conversationId: string) => void;
   setTyping: (conversationId: string, userId: string) => void;
   clearTyping: (conversationId: string) => void;
   reset: () => void;
@@ -34,6 +35,14 @@ interface ChatState {
 
 function calcTotalUnread(unreadMap: UnreadMap): number {
   return Object.values(unreadMap).reduce((sum, n) => sum + n, 0);
+}
+
+function sortConversations(conversations: Conversation[]): Conversation[] {
+  return [...conversations].sort((a, b) => {
+    const aTime = a.lastMessage?.createdAt || a.createdAt;
+    const bTime = b.lastMessage?.createdAt || b.createdAt;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
 }
 
 let tempIdCounter = 0;
@@ -57,7 +66,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     });
     set({
-      conversations,
+      conversations: sortConversations(conversations),
       unreadMap,
       totalUnread: calcTotalUnread(unreadMap),
     });
@@ -188,13 +197,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return { ...c, lastMessage };
       });
 
-      const sorted = [...conversations].sort((a, b) => {
-        const aTime = a.lastMessage?.createdAt || a.createdAt;
-        const bTime = b.lastMessage?.createdAt || b.createdAt;
-        return new Date(bTime).getTime() - new Date(aTime).getTime();
-      });
-
-      return { conversations: sorted };
+      return { conversations: sortConversations(conversations) };
     });
   },
 
@@ -216,6 +219,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
   markAllRead: () => {
     set({ unreadMap: {}, totalUnread: 0 });
     api.put('/conversations/read-all').catch(() => {});
+  },
+
+  deleteConversation: (conversationId) => {
+    set((state) => {
+      const newMap = { ...state.unreadMap };
+      delete newMap[conversationId];
+      return {
+        conversations: state.conversations.filter((c) => c.id !== conversationId),
+        currentConversation: state.currentConversation?.id === conversationId ? null : state.currentConversation,
+        messages: state.currentConversation?.id === conversationId ? [] : state.messages,
+        unreadMap: newMap,
+        totalUnread: calcTotalUnread(newMap),
+      };
+    });
+    api.delete(`/conversations/${conversationId}`).catch(() => {});
   },
 
   setTyping: (conversationId, userId) => {

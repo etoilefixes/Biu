@@ -73,6 +73,12 @@ export async function getConversations(userId: string) {
     });
   }
 
+  result.sort((a, b) => {
+    const aTime = a.lastMessage?.createdAt || a.createdAt;
+    const bTime = b.lastMessage?.createdAt || b.createdAt;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
+
   return result;
 }
 
@@ -125,6 +131,37 @@ export async function markAllAsRead(userId: string) {
       await redis.set(unreadKey, '0');
     }
   }
+
+  return { success: true };
+}
+
+export async function deleteConversation(userId: string, conversationId: string) {
+  const membership = await prisma.conversationMember.findFirst({
+    where: { conversationId, userId },
+  });
+
+  if (!membership) {
+    throw new Error('无权操作此会话');
+  }
+
+  await prisma.conversationMember.deleteMany({
+    where: { conversationId, userId },
+  });
+
+  const remaining = await prisma.conversationMember.count({
+    where: { conversationId },
+  });
+
+  if (remaining === 0) {
+    await prisma.message.deleteMany({ where: { conversationId } });
+    await prisma.conversation.delete({ where: { id: conversationId } });
+  }
+
+  const { redis } = await import('../../config/redis');
+  const unreadKey = `unread:${userId}:${conversationId}`;
+  await redis.del(unreadKey);
+  const readKey = `read:${userId}:${conversationId}`;
+  await redis.del(readKey);
 
   return { success: true };
 }
