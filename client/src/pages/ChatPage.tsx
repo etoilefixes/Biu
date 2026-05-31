@@ -46,6 +46,7 @@ export default function ChatPage() {
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const addDropdownRef = useRef<HTMLDivElement>(null);
+  const [openedConvId, setOpenedConvId] = useState<string | null>(null);
 
   useEffect(() => {
     loadConversations();
@@ -426,6 +427,9 @@ export default function ChatPage() {
                   currentUserId={user?.id || ''}
                   unreadCount={unreadMap[conv.id] || 0}
                   onDelete={deleteConversation}
+                  isOpened={openedConvId === conv.id}
+                  onSwipeOpen={setOpenedConvId}
+                  onSwipeClose={() => setOpenedConvId(null)}
                 />
               </motion.div>
             ))}
