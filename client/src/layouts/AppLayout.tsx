@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useFriendStore } from '../store/friendStore';
+import { socketService } from '../services/socket';
 import api from '../services/api';
 import NavBar from '../components/NavBar';
 import TitleBar from '../components/TitleBar';
@@ -9,6 +10,7 @@ import TitleBar from '../components/TitleBar';
 export default function AppLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const setReceivedRequests = useFriendStore((s) => s.setReceivedRequests);
+  const addReceivedRequest = useFriendStore((s) => s.addReceivedRequest);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -23,7 +25,15 @@ export default function AppLayout() {
     };
 
     loadPendingRequests();
-  }, [isAuthenticated, setReceivedRequests]);
+
+    socketService.onFriendRequest(() => {
+      loadPendingRequests();
+    });
+
+    return () => {
+      socketService.offFriendRequest();
+    };
+  }, [isAuthenticated, setReceivedRequests, addReceivedRequest]);
 
   return (
     <div className="flex flex-col h-screen gradient-bg page-transition">

@@ -4,7 +4,6 @@ import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
 import { useFriendStore } from '../store/friendStore';
 import api from '../services/api';
-import { socketService } from '../services/socket';
 import GlassCard from '../components/GlassCard';
 import Toast from '../components/Toast';
 import { IconSearch, IconChat, IconCheck, IconX, IconTrash, IconAddFriend, IconFriendRequest, IconContacts } from '../components/Icons';
@@ -29,7 +28,6 @@ export default function ContactsPage() {
     setFriends,
     setReceivedRequests,
     setSentRequests,
-    addReceivedRequest,
   } = useFriendStore();
   const navigate = useNavigate();
   const previewRef = useRef<HTMLDivElement>(null);
@@ -37,17 +35,6 @@ export default function ContactsPage() {
   useEffect(() => {
     handleLoadFriends();
   }, []);
-
-  useEffect(() => {
-    const handleFriendRequest = (request: FriendRequest) => {
-      addReceivedRequest(request);
-      setToast({ message: '收到新的好友申请', type: 'success' });
-    };
-    socketService.onFriendRequest(handleFriendRequest);
-    return () => {
-      socketService.offFriendRequest();
-    };
-  }, [addReceivedRequest]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
