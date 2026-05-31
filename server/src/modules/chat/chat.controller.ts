@@ -39,3 +39,12 @@ export async function markRead(req: AuthRequest, res: Response) {
     res.status(400).json({ code: 400, message: err.message });
   }
 }
+
+export async function markAllRead(req: AuthRequest, res: Response) {
+  try {
+    await chatService.markAllAsRead(req.userId!);
+    res.json({ code: 200, message: '全部标记成功' });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}

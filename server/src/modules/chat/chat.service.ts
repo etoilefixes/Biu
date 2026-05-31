@@ -33,16 +33,14 @@ export async function getConversations(userId: string) {
     const conv = m.conversation;
     const lastMsg = conv.messages[0];
 
+    const lastReadAt = await getLastReadAt(userId, conv.id);
+    const afterTime = lastReadAt && lastReadAt > m.joinedAt ? lastReadAt : m.joinedAt;
+
     const unreadCount = await prisma.message.count({
       where: {
         conversationId: conv.id,
         senderId: { not: userId },
-        createdAt: { gt: m.joinedAt },
-        NOT: {
-          id: {
-            in: await getReadMessageIds(userId, conv.id),
-          },
-        },
+        createdAt: { gt: afterTime },
       },
     });
 
@@ -78,26 +76,54 @@ export async function getConversations(userId: string) {
   return result;
 }
 
-async function getReadMessageIds(userId: string, conversationId: string): Promise<string[]> {
+async function getLastReadAt(userId: string, conversationId: string): Promise<Date | null> {
+  const { redis } = await import('../../config/redis');
   const key = `read:${userId}:${conversationId}`;
-  const data = await import('../../config/redis').then((m) => m.redis.get(key));
-  return data ? JSON.parse(data) : [];
+  const data = await redis.get(key);
+  return data ? new Date(data) : null;
 }
 
 export async function markAsRead(userId: string, conversationId: string) {
   const lastMessage = await prisma.message.findFirst({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
-    select: { id: true },
+    select: { createdAt: true },
   });
 
   if (lastMessage) {
     const { redis } = await import('../../config/redis');
     const key = `read:${userId}:${conversationId}`;
-    await redis.set(key, JSON.stringify([lastMessage.id]));
+    await redis.set(key, lastMessage.createdAt.toISOString());
 
     const unreadKey = `unread:${userId}:${conversationId}`;
     await redis.set(unreadKey, '0');
+  }
+
+  return { success: true };
+}
+
+export async function markAllAsRead(userId: string) {
+  const memberships = await prisma.conversationMember.findMany({
+    where: { userId },
+    select: { conversationId: true },
+  });
+
+  const { redis } = await import('../../config/redis');
+
+  for (const m of memberships) {
+    const lastMessage = await prisma.message.findFirst({
+      where: { conversationId: m.conversationId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    if (lastMessage) {
+      const key = `read:${userId}:${m.conversationId}`;
+      await redis.set(key, lastMessage.createdAt.toISOString());
+
+      const unreadKey = `unread:${userId}:${m.conversationId}`;
+      await redis.set(unreadKey, '0');
+    }
   }
 
   return { success: true };

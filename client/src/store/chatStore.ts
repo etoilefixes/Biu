@@ -26,6 +26,7 @@ interface ChatState {
   updateConversationLastMessage: (conversationId: string, message: Message) => void;
   setUnread: (conversationId: string, count: number) => void;
   clearUnread: (conversationId: string) => void;
+  markAllRead: () => void;
   setTyping: (conversationId: string, userId: string) => void;
   clearTyping: (conversationId: string) => void;
   reset: () => void;
@@ -55,13 +56,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         unreadMap[c.id] = c.unreadCount;
       }
     });
-    set((state) => {
-      const newUnreadMap = { ...state.unreadMap, ...unreadMap };
-      return {
-        conversations,
-        unreadMap: newUnreadMap,
-        totalUnread: calcTotalUnread(newUnreadMap),
-      };
+    set({
+      conversations,
+      unreadMap,
+      totalUnread: calcTotalUnread(unreadMap),
     });
   },
 
@@ -213,6 +211,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       delete newMap[conversationId];
       return { unreadMap: newMap, totalUnread: calcTotalUnread(newMap) };
     });
+  },
+
+  markAllRead: () => {
+    set({ unreadMap: {}, totalUnread: 0 });
+    api.put('/conversations/read-all').catch(() => {});
   },
 
   setTyping: (conversationId, userId) => {

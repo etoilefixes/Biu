@@ -17,6 +17,7 @@ export default function ChatPage() {
     currentConversation,
     messages,
     unreadMap,
+    totalUnread,
     loadConversations,
     selectConversation,
     sendMessage,
@@ -26,6 +27,7 @@ export default function ChatPage() {
     setTyping,
     addConversationOptimistic,
     replaceTempConversation,
+    markAllRead,
   } = useChatStore();
   const { friends, setFriends } = useFriendStore();
   const [input, setInput] = useState('');
@@ -48,7 +50,12 @@ export default function ChatPage() {
     api.get('/friends').then((res: any) => setFriends(res.data)).catch(() => {});
     socketService.onMessage(addMessage);
     socketService.onTyping((data) => setTyping(data.conversationId, data.userId));
-    socketService.onUnread((data) => setUnread(data.conversationId, data.count));
+    socketService.onUnread((data) => {
+      const currentId = useChatStore.getState().currentConversation?.id;
+      if (currentId !== data.conversationId) {
+        setUnread(data.conversationId, data.count);
+      }
+    });
     return () => {
       socketService.offMessage();
       socketService.offTyping();
@@ -352,7 +359,7 @@ export default function ChatPage() {
         className="glass border-r border-white/5 flex flex-col shrink-0"
         style={{ width: sidebarWidth }}
       >
-        <div className="p-3 relative flex gap-2">
+        <div className="p-3 relative flex gap-2 items-center">
           <div className="flex-1 relative">
             <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
             <input
@@ -363,6 +370,14 @@ export default function ChatPage() {
               className="w-full pl-8 pr-3 py-2.5 rounded-xl glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
             />
           </div>
+          {totalUnread > 0 && (
+            <button
+              onClick={markAllRead}
+              className="text-xs text-biu-primary hover:text-biu-primary-dim transition whitespace-nowrap font-body"
+            >
+              全部已读
+            </button>
+          )}
           <div className="relative" ref={addDropdownRef}>
             <button
               onClick={() => setShowAddDropdown(!showAddDropdown)}
