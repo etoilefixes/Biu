@@ -21,17 +21,43 @@ function createWindow() {
             nodeIntegration: false,
         },
     });
-    if (process.env.NODE_ENV === 'development') {
+    const isDev = !electron_1.app.isPackaged || process.env.ELECTRON_DEV === '1';
+    if (isDev) {
         mainWindow.loadURL('http://localhost:5173');
     }
     else {
         mainWindow.loadFile(path_1.default.join(__dirname, '../dist/index.html'));
     }
+    mainWindow.on('maximize', () => {
+        mainWindow?.webContents.send('window-maximized-changed', true);
+    });
+    mainWindow.on('unmaximize', () => {
+        mainWindow?.webContents.send('window-maximized-changed', false);
+    });
 }
 electron_1.ipcMain.on('set-title', (_event, title) => {
     if (mainWindow) {
         mainWindow.setTitle(title);
     }
+});
+electron_1.ipcMain.on('window-minimize', () => {
+    mainWindow?.minimize();
+});
+electron_1.ipcMain.on('window-maximize', () => {
+    if (!mainWindow)
+        return;
+    if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+    }
+    else {
+        mainWindow.maximize();
+    }
+});
+electron_1.ipcMain.on('window-close', () => {
+    mainWindow?.close();
+});
+electron_1.ipcMain.handle('window-is-maximized', () => {
+    return mainWindow?.isMaximized() ?? false;
 });
 electron_1.app.whenReady().then(createWindow);
 electron_1.app.on('window-all-closed', () => {
