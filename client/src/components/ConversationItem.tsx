@@ -32,7 +32,11 @@ export default function ConversationItem({ conversation, active, onClick, curren
   let preview = '暂无消息';
   if (lastMsg) {
     if (isSelf) {
-      preview = lastMsg.content;
+      if (conversation.type === 'group') {
+        preview = `你: ${lastMsg.content}`;
+      } else {
+        preview = lastMsg.content;
+      }
     } else {
       const senderName = lastMsg.senderNickname || '对方';
       preview = `${senderName}: ${lastMsg.content}`;
