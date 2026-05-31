@@ -6,6 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && tsc -p tsconfig.electron.json && cross-env ELECTRON_DEV=1 electron .\"",
+    "electron:dev:1": "concurrently \"vite\" \"wait-on http://localhost:5173 && tsc -p tsconfig.electron.json && cross-env ELECTRON_DEV=1 electron . --user-data-dir=./tmp/user-data-1\"",
+    "electron:dev:2": "cross-env ELECTRON_DEV=1 electron . --user-data-dir=./tmp/user-data-2",
     "electron:build": "vite build && electron-builder"
   },
   "dependencies": {
