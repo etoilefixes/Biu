@@ -198,9 +198,9 @@ export default function ConversationItem({
           transform: `translateX(${translateX}px)`,
           transition: isSwiping.current ? 'none' : 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
-        className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none ${
+        className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none bg-biu-dark ${
           active
-            ? 'bg-biu-primary/10 border-l-2 border-biu-primary'
+            ? '!bg-biu-primary/10 border-l-2 border-biu-primary'
             : 'hover:bg-white/[0.03] border-l-2 border-transparent'
         }`}
       >
