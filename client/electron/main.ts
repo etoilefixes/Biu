@@ -24,12 +24,41 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('window-maximized-changed', true);
+  });
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('window-maximized-changed', false);
+  });
 }
 
 ipcMain.on('set-title', (_event, title: string) => {
   if (mainWindow) {
     mainWindow.setTitle(title);
   }
+});
+
+ipcMain.on('window-minimize', () => {
+  mainWindow?.minimize();
+});
+
+ipcMain.on('window-maximize', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+});
+
+ipcMain.on('window-close', () => {
+  mainWindow?.close();
+});
+
+ipcMain.handle('window-is-maximized', () => {
+  return mainWindow?.isMaximized() ?? false;
 });
 
 app.whenReady().then(createWindow);

@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useFriendStore } from '../store/friendStore';
 import api from '../services/api';
 import NavBar from '../components/NavBar';
+import TitleBar from '../components/TitleBar';
 
 export default function AppLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -25,10 +26,13 @@ export default function AppLayout() {
   }, [isAuthenticated, setReceivedRequests]);
 
   return (
-    <div className="flex h-screen gradient-bg page-transition">
+    <div className="flex flex-col h-screen gradient-bg page-transition">
       <div className="noise-overlay" />
-      <NavBar />
-      <Outlet />
+      <TitleBar />
+      <div className="flex flex-1 min-h-0">
+        <NavBar />
+        <Outlet />
+      </div>
     </div>
   );
 }

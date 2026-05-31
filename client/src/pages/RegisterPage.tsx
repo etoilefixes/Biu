@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import Toast from '../components/Toast';
+import TitleBar from '../components/TitleBar';
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('');
@@ -26,8 +27,10 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen gradient-bg page-transition">
+    <div className="flex flex-col h-screen gradient-bg page-transition">
       <div className="noise-overlay" />
+      <TitleBar />
+      <div className="flex items-center justify-center flex-1">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="w-[400px] animate-scale-in">
         <div className="text-center mb-10">
@@ -85,6 +88,7 @@ export default function RegisterPage() {
             登录
           </Link>
         </p>
+      </div>
       </div>
     </div>
   );
