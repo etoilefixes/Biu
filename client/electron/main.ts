@@ -19,7 +19,9 @@ function createWindow() {
     },
   });
 
-  if (process.env.NODE_ENV === 'development') {
+  const isDev = !app.isPackaged;
+
+  if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
