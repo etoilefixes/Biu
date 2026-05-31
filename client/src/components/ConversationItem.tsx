@@ -198,12 +198,13 @@ export default function ConversationItem({
           transform: `translateX(${translateX}px)`,
           transition: isSwiping.current ? 'none' : 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
-        className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none bg-biu-dark ${
+        className={`relative flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none bg-biu-dark ${
           active
-            ? '!bg-biu-primary/10 border-l-2 border-biu-primary'
-            : 'hover:bg-white/[0.03] border-l-2 border-transparent'
+            ? 'border-l-2 border-biu-primary'
+            : 'hover:bg-biu-dark-alt border-l-2 border-transparent'
         }`}
       >
+        {active && <div className="absolute inset-0 bg-biu-primary/10 pointer-events-none" />}
         <div className="relative shrink-0">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-secondary/30 to-biu-secondary/10 flex items-center justify-center text-white text-sm font-display font-600">
             {avatar}
