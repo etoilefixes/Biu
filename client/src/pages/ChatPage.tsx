@@ -8,7 +8,7 @@ import ConversationItem from '../components/ConversationItem';
 import ChatBubble from '../components/ChatBubble';
 import Toast from '../components/Toast';
 import GlassCard from '../components/GlassCard';
-import { IconSearch, IconSend, IconChat, IconPlus, IconX, IconCheck } from '../components/Icons';
+import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup } from '../components/Icons';
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user);
@@ -34,12 +34,18 @@ export default function ChatPage() {
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isDragging = useRef(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showAddDropdown, setShowAddDropdown] = useState(false);
+  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
+  const [addFriendKeyword, setAddFriendKeyword] = useState('');
+  const [addFriendResults, setAddFriendResults] = useState<any[]>([]);
   const [groupName, setGroupName] = useState('');
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const addDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadConversations();
+    api.get('/friends').then((res: any) => setFriends(res.data)).catch(() => {});
     socketService.onMessage(addMessage);
     socketService.onTyping((data) => setTyping(data.conversationId, data.userId));
     socketService.onUnread((data) => setUnread(data.conversationId, data.count));
@@ -54,17 +60,25 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addDropdownRef.current && !addDropdownRef.current.contains(e.target as Node)) {
+        setShowAddDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleMouseDown = useCallback(() => {
     isDragging.current = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging.current) return;
       const newWidth = Math.max(200, Math.min(400, e.clientX - 60));
       setSidebarWidth(newWidth);
     };
-
     const handleMouseUp = () => {
       isDragging.current = false;
       document.body.style.cursor = '';
@@ -72,7 +86,6 @@ export default function ChatPage() {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }, []);
@@ -90,9 +103,7 @@ export default function ChatPage() {
     }
   };
 
-  const handleCopy = (content: string) => {
-    setToast({ message: '已复制到剪贴板', type: 'success' });
-  };
+  const handleCopy = () => setToast({ message: '已复制到剪贴板', type: 'success' });
 
   const handleDeleteMessage = (id: string) => {
     removeMessage(id);
@@ -114,6 +125,7 @@ export default function ChatPage() {
   };
 
   const handleOpenGroupModal = async () => {
+    setShowAddDropdown(false);
     setShowGroupModal(true);
     setGroupName('');
     setSelectedMemberIds([]);
@@ -122,6 +134,32 @@ export default function ChatPage() {
       setFriends(res.data);
     } catch (err) {
       console.error('Failed to load friends:', err);
+    }
+  };
+
+  const handleOpenAddFriendModal = () => {
+    setShowAddDropdown(false);
+    setShowAddFriendModal(true);
+    setAddFriendKeyword('');
+    setAddFriendResults([]);
+  };
+
+  const handleSearchFriend = async () => {
+    if (!addFriendKeyword.trim()) return;
+    try {
+      const res: any = await api.get(`/users/search?keyword=${addFriendKeyword}`);
+      setAddFriendResults(res.data);
+    } catch (err: any) {
+      setToast({ message: '搜索失败', type: 'error' });
+    }
+  };
+
+  const handleSendFriendRequest = async (toUserId: string) => {
+    try {
+      await api.post('/friends/request', { toUserId });
+      setToast({ message: '好友申请已发送', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.response?.data?.message || '发送失败', type: 'error' });
     }
   };
 
@@ -140,7 +178,6 @@ export default function ChatPage() {
       setToast({ message: '请至少选择一位成员', type: 'error' });
       return;
     }
-
     const tempId = `temp_conv_${Date.now()}`;
     const tempConversation: any = {
       id: tempId,
@@ -156,10 +193,8 @@ export default function ChatPage() {
       ],
       _status: 'creating',
     };
-
     addConversationOptimistic(tempConversation);
     setShowGroupModal(false);
-
     try {
       const res: any = await api.post('/conversations', {
         type: 'group',
@@ -174,6 +209,12 @@ export default function ChatPage() {
     }
   };
 
+  const isFriend = (userId: string) => friends.some((f) => f.id === userId);
+
+  const otherUser = currentConversation?.type === 'private'
+    ? currentConversation.members.find((m) => m.userId !== user?.id)
+    : null;
+
   const filteredConversations = searchQuery
     ? conversations.filter((conv) => {
         const name = conv.type === 'group'
@@ -186,6 +227,66 @@ export default function ChatPage() {
   return (
     <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {showAddFriendModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+          <GlassCard className="w-[400px] max-h-[70vh] flex flex-col p-6 animate-scale-in">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-white font-display font-700 text-lg">添加好友</h2>
+              <button onClick={() => setShowAddFriendModal(false)} className="text-gray-500 hover:text-white transition">
+                <IconX size={18} />
+              </button>
+            </div>
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1 relative">
+                <IconSearch size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" />
+                <input
+                  type="text"
+                  value={addFriendKeyword}
+                  onChange={(e) => setAddFriendKeyword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchFriend()}
+                  placeholder="搜索用户名、昵称或 Biu号..."
+                  className="w-full pl-10 pr-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body"
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={handleSearchFriend}
+                className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 hover:shadow-glow"
+              >
+                <IconSearch size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {addFriendResults.map((u) => (
+                <div key={u.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-secondary/30 to-biu-secondary/10 flex items-center justify-center text-white text-sm font-display font-600">
+                      {u.nickname[0]}
+                    </div>
+                    <span className="text-white font-display text-sm">{u.nickname}</span>
+                  </div>
+                  {isFriend(u.id) ? (
+                    <span className="text-gray-500 text-xs font-body">已是好友</span>
+                  ) : (
+                    <button
+                      onClick={() => handleSendFriendRequest(u.id)}
+                      className="p-2 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition"
+                      title="添加好友"
+                    >
+                      <IconAddFriend size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {addFriendResults.length === 0 && addFriendKeyword && (
+                <p className="text-gray-600 text-sm text-center py-4">未找到用户</p>
+              )}
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
       {showGroupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
           <GlassCard className="w-[420px] max-h-[80vh] flex flex-col p-6 animate-scale-in">
@@ -195,7 +296,6 @@ export default function ChatPage() {
                 <IconX size={18} />
               </button>
             </div>
-
             <div className="mb-4">
               <label className="text-gray-400 text-xs font-medium mb-1.5 block">群名称</label>
               <input
@@ -206,7 +306,6 @@ export default function ChatPage() {
                 className="w-full px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body"
               />
             </div>
-
             <div className="mb-4">
               <label className="text-gray-400 text-xs font-medium mb-1.5 block">
                 选择成员 ({selectedMemberIds.length} 人已选)
@@ -230,7 +329,6 @@ export default function ChatPage() {
                     </div>
                     <div className="flex-1 text-left">
                       <p className="text-white text-sm font-display">{f.nickname}</p>
-                      <p className="text-biu-primary/50 text-xs font-display">{f.biuId}</p>
                     </div>
                     {selectedMemberIds.includes(f.id) && (
                       <IconCheck size={16} className="text-biu-primary" />
@@ -239,7 +337,6 @@ export default function ChatPage() {
                 ))}
               </div>
             </div>
-
             <button
               onClick={handleCreateGroup}
               disabled={!groupName.trim() || selectedMemberIds.length === 0}
@@ -250,6 +347,7 @@ export default function ChatPage() {
           </GlassCard>
         </div>
       )}
+
       <div
         className="glass border-r border-white/5 flex flex-col shrink-0"
         style={{ width: sidebarWidth }}
@@ -265,13 +363,33 @@ export default function ChatPage() {
               className="w-full pl-8 pr-3 py-2.5 rounded-xl glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
             />
           </div>
-          <button
-            onClick={handleOpenGroupModal}
-            className="w-10 h-10 rounded-xl bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 flex items-center justify-center transition shrink-0"
-            title="创建群聊"
-          >
-            <IconPlus size={16} />
-          </button>
+          <div className="relative" ref={addDropdownRef}>
+            <button
+              onClick={() => setShowAddDropdown(!showAddDropdown)}
+              className="w-10 h-10 rounded-xl bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 flex items-center justify-center transition shrink-0"
+              title="添加"
+            >
+              <IconAddFriend size={18} />
+            </button>
+            {showAddDropdown && (
+              <div className="absolute right-0 top-12 z-40 animate-scale-in">
+                <GlassCard className="w-40 py-1.5">
+                  <button
+                    onClick={handleOpenAddFriendModal}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/5 transition font-body"
+                  >
+                    <IconAddFriend size={16} className="text-biu-primary" /> 添加好友
+                  </button>
+                  <button
+                    onClick={handleOpenGroupModal}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/5 transition font-body"
+                  >
+                    <IconGroup size={16} className="text-biu-primary" /> 发起群聊
+                  </button>
+                </GlassCard>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {filteredConversations.map((conv) => (
@@ -299,6 +417,14 @@ export default function ChatPage() {
                 <span className="ml-2 text-gray-500 text-xs font-body">
                   ({currentConversation.members.length}人)
                 </span>
+              )}
+              {currentConversation.type === 'private' && otherUser && !isFriend(otherUser.userId) && (
+                <button
+                  onClick={() => handleSendFriendRequest(otherUser.userId)}
+                  className="ml-3 flex items-center gap-1.5 px-3 py-1 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-xs font-body"
+                >
+                  <IconAddFriend size={12} /> 添加到通讯录
+                </button>
               )}
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4">

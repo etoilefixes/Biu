@@ -13,6 +13,7 @@ interface ChatState {
   messages: Message[];
   typingUsers: Map<string, string>;
   unreadMap: UnreadMap;
+  totalUnread: number;
   loadConversations: () => Promise<void>;
   selectConversation: (conversation: Conversation) => Promise<void>;
   sendMessage: (content: string, type?: string, senderId?: string) => void;
@@ -30,6 +31,10 @@ interface ChatState {
   reset: () => void;
 }
 
+function calcTotalUnread(unreadMap: UnreadMap): number {
+  return Object.values(unreadMap).reduce((sum, n) => sum + n, 0);
+}
+
 let tempIdCounter = 0;
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -38,17 +43,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   typingUsers: new Map(),
   unreadMap: {},
+  totalUnread: 0,
 
   loadConversations: async () => {
     const res: any = await api.get('/conversations');
     const conversations: Conversation[] = res.data;
+    const currentId = get().currentConversation?.id;
     const unreadMap: UnreadMap = {};
     conversations.forEach((c: any) => {
-      if (c.unreadCount > 0) {
+      if (c.unreadCount > 0 && c.id !== currentId) {
         unreadMap[c.id] = c.unreadCount;
       }
     });
-    set({ conversations, unreadMap });
+    set((state) => {
+      const newUnreadMap = { ...state.unreadMap, ...unreadMap };
+      return {
+        conversations,
+        unreadMap: newUnreadMap,
+        totalUnread: calcTotalUnread(newUnreadMap),
+      };
+    });
   },
 
   selectConversation: async (conversation) => {
@@ -173,16 +187,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   setUnread: (conversationId, count) => {
-    set((state) => ({
-      unreadMap: { ...state.unreadMap, [conversationId]: count },
-    }));
+    set((state) => {
+      const newMap = { ...state.unreadMap, [conversationId]: count };
+      return { unreadMap: newMap, totalUnread: calcTotalUnread(newMap) };
+    });
   },
 
   clearUnread: (conversationId) => {
     set((state) => {
       const newMap = { ...state.unreadMap };
       delete newMap[conversationId];
-      return { unreadMap: newMap };
+      return { unreadMap: newMap, totalUnread: calcTotalUnread(newMap) };
     });
   },
 
@@ -210,6 +225,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       typingUsers: new Map(),
       unreadMap: {},
+      totalUnread: 0,
     });
   },
 }));
