@@ -27,6 +27,7 @@ interface ChatState {
   clearUnread: (conversationId: string) => void;
   setTyping: (conversationId: string, userId: string) => void;
   clearTyping: (conversationId: string) => void;
+  reset: () => void;
 }
 
 let tempIdCounter = 0;
@@ -199,6 +200,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const newMap = new Map(state.typingUsers);
       newMap.delete(conversationId);
       return { typingUsers: newMap };
+    });
+  },
+
+  reset: () => {
+    set({
+      conversations: [],
+      currentConversation: null,
+      messages: [],
+      typingUsers: new Map(),
+      unreadMap: {},
     });
   },
 }));

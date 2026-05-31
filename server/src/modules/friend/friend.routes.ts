@@ -8,6 +8,7 @@ const router = Router();
 
 router.post('/request', authMiddleware, validate(sendFriendRequestSchema), friendController.sendRequest);
 router.put('/request/:id', authMiddleware, validate(handleFriendRequestSchema), friendController.handleRequest);
+router.delete('/:friendId', authMiddleware, friendController.deleteFriend);
 router.get('/requests', authMiddleware, friendController.listRequests);
 router.get('/', authMiddleware, friendController.listFriends);
 

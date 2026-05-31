@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { User } from '@biu/shared';
 import api from '../services/api';
 import { socketService } from '../services/socket';
+import { useFriendStore } from './friendStore';
+import { useChatStore } from './chatStore';
 
 function updateWindowTitle(user: User | null) {
   const title = user ? `${user.nickname} - Biu` : 'Biu';
@@ -46,6 +48,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('biu_token');
     socketService.disconnect();
+    useFriendStore.getState().clear();
+    useChatStore.getState().reset();
     set({ user: null, token: null, isAuthenticated: false });
     updateWindowTitle(null);
   },

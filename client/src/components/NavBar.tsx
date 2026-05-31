@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useFriendStore } from '../store/friendStore';
 import Toast from './Toast';
 import { IconChat, IconContacts, IconLogout, IconEdit } from './Icons';
 
@@ -8,6 +9,7 @@ export default function NavBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, updateProfileOptimistic, logout } = useAuthStore();
+  const { pendingRequestCount } = useFriendStore();
   const [showProfile, setShowProfile] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
@@ -153,7 +155,7 @@ export default function NavBar() {
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative ${
               location.pathname === item.path
                 ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
                 : 'text-gray-500 hover:text-white hover:bg-white/5'
@@ -161,6 +163,11 @@ export default function NavBar() {
             title={item.label}
           >
             {item.icon}
+            {item.path === '/contacts' && pendingRequestCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none">
+                {pendingRequestCount > 99 ? '99+' : pendingRequestCount}
+              </span>
+            )}
           </button>
         ))}
       </div>

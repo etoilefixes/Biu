@@ -1,4 +1,6 @@
 import { prisma } from '../../config/database';
+import { redis } from '../../config/redis';
+import { getIo } from '../../socket';
 
 export async function sendFriendRequest(
   fromUserId: string,
@@ -46,7 +48,7 @@ export async function sendFriendRequest(
     },
   });
 
-  return {
+  const result = {
     id: request.id,
     fromUserId: request.fromUserId,
     toUserId: request.toUserId,
@@ -56,6 +58,18 @@ export async function sendFriendRequest(
     fromUser: { ...request.fromUser, status: request.fromUser.status as 'online' | 'offline' | 'away' },
     toUser: { ...request.toUser, status: request.toUser.status as 'online' | 'offline' | 'away' },
   };
+
+  try {
+    const io = getIo();
+    const toSocketId = await redis.get(`user:socket:${toUserId}`);
+    if (toSocketId) {
+      io.to(toSocketId).emit('friend:request', result);
+    }
+  } catch (err) {
+    console.error('Failed to send friend request notification:', err);
+  }
+
+  return result;
 }
 
 export async function handleFriendRequest(
@@ -175,4 +189,25 @@ export async function getFriends(userId: string) {
       status: friend.status as 'online' | 'offline' | 'away',
     };
   });
+}
+
+export async function deleteFriend(userId: string, friendId: string) {
+  const friendRequest = await prisma.friendRequest.findFirst({
+    where: {
+      OR: [
+        { fromUserId: userId, toUserId: friendId, status: 'accepted' },
+        { fromUserId: friendId, toUserId: userId, status: 'accepted' },
+      ],
+    },
+  });
+
+  if (!friendRequest) {
+    throw new Error('不是好友关系');
+  }
+
+  await prisma.friendRequest.delete({
+    where: { id: friendRequest.id },
+  });
+
+  return { success: true };
 }

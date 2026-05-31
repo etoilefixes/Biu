@@ -95,6 +95,9 @@ export async function markAsRead(userId: string, conversationId: string) {
     const { redis } = await import('../../config/redis');
     const key = `read:${userId}:${conversationId}`;
     await redis.set(key, JSON.stringify([lastMessage.id]));
+
+    const unreadKey = `unread:${userId}:${conversationId}`;
+    await redis.set(unreadKey, '0');
   }
 
   return { success: true };

@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../../config/database';
 import { config } from '../../config';
 
@@ -51,8 +51,8 @@ export async function register(data: { username: string; password: string; nickn
   });
 
   const token = jwt.sign({ userId: user.id }, config.jwtSecret, {
-    expiresIn: config.jwtExpiresIn,
-  });
+    expiresIn: config.jwtExpiresIn as string,
+  } as SignOptions);
 
   return { token, user: formatUser(user) };
 }
@@ -73,8 +73,8 @@ export async function login(data: { account: string; password: string }) {
   }
 
   const token = jwt.sign({ userId: user.id }, config.jwtSecret, {
-    expiresIn: config.jwtExpiresIn,
-  });
+    expiresIn: config.jwtExpiresIn as string,
+  } as SignOptions);
 
   return { token, user: formatUser(user) };
 }

@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
+import { useFriendStore } from '../store/friendStore';
 import api from '../services/api';
+import { socketService } from '../services/socket';
 import GlassCard from '../components/GlassCard';
 import Toast from '../components/Toast';
-import { IconSearch, IconChat, IconUserPlus, IconCheck, IconX } from '../components/Icons';
+import { IconSearch, IconChat, IconUserPlus, IconCheck, IconX, IconTrash } from '../components/Icons';
 import { User, FriendRequest } from '@biu/shared';
 
 type Tab = 'search' | 'friends' | 'requests';
@@ -14,13 +16,32 @@ export default function ContactsPage() {
   const [tab, setTab] = useState<Tab>('search');
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<User[]>([]);
-  const [friends, setFriends] = useState<User[]>([]);
-  const [receivedRequests, setReceivedRequests] = useState<FriendRequest[]>([]);
-  const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const { loadConversations, addConversationOptimistic, replaceTempConversation } = useChatStore();
   const user = useAuthStore((s) => s.user);
+  const { 
+    friends, 
+    receivedRequests, 
+    sentRequests,
+    setFriends, 
+    setReceivedRequests, 
+    setSentRequests, 
+    addReceivedRequest 
+  } = useFriendStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleFriendRequest = (request: FriendRequest) => {
+      addReceivedRequest(request);
+      setToast({ message: '收到新的好友请求', type: 'success' });
+    };
+
+    socketService.onFriendRequest(handleFriendRequest);
+
+    return () => {
+      socketService.offFriendRequest();
+    };
+  }, [addReceivedRequest]);
 
   const handleSearch = async () => {
     if (!keyword.trim()) return;
@@ -78,6 +99,17 @@ export default function ContactsPage() {
       handleLoadRequests();
     } catch (err: any) {
       setToast({ message: err.response?.data?.message || '操作失败', type: 'error' });
+    }
+  };
+
+  const handleDeleteFriend = async (friendId: string) => {
+    if (!confirm('确定要删除这个好友吗？')) return;
+    try {
+      await api.delete(`/friends/${friendId}`);
+      setToast({ message: '已删除好友', type: 'success' });
+      handleLoadFriends();
+    } catch (err: any) {
+      setToast({ message: err.response?.data?.message || '删除失败', type: 'error' });
     }
   };
 
@@ -207,12 +239,20 @@ export default function ContactsPage() {
                     <p className="text-biu-primary/60 text-xs font-display">{f.biuId}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleStartChat(f)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-sm font-body"
-                >
-                  <IconChat size={14} /> 发消息
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleStartChat(f)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-sm font-body"
+                  >
+                    <IconChat size={14} /> 发消息
+                  </button>
+                  <button
+                    onClick={() => handleDeleteFriend(f.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-biu-accent/10 text-biu-accent hover:bg-biu-accent/20 transition text-sm font-body"
+                  >
+                    <IconTrash size={14} />
+                  </button>
+                </div>
               </GlassCard>
             ))}
           </div>

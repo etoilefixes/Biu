@@ -6,8 +6,9 @@ export async function list(req: AuthRequest, res: Response) {
   try {
     const before = req.query.before as string | undefined;
     const limit = parseInt(req.query.limit as string) || 50;
+    const conversationId = req.params.conversationId as string;
     const messages = await messageService.getMessages(
-      req.params.conversationId,
+      conversationId,
       req.userId!,
       before,
       limit
@@ -20,8 +21,9 @@ export async function list(req: AuthRequest, res: Response) {
 
 export async function create(req: AuthRequest, res: Response) {
   try {
+    const conversationId = req.params.conversationId as string;
     const message = await messageService.createMessage(
-      req.params.conversationId,
+      conversationId,
       req.userId!,
       req.body.content,
       req.body.type
