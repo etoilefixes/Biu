@@ -66,13 +66,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectConversation: async (conversation) => {
-    set({ currentConversation: conversation, messages: [] });
-    const res: any = await api.get(`/messages/${conversation.id}`);
-    set({ messages: res.data });
+    const { unreadMap } = get();
+    const hasUnread = unreadMap[conversation.id] && unreadMap[conversation.id] > 0;
 
-    get().clearUnread(conversation.id);
+    if (hasUnread) {
+      const newMap = { ...unreadMap };
+      delete newMap[conversation.id];
+      set({
+        currentConversation: conversation,
+        messages: [],
+        unreadMap: newMap,
+        totalUnread: calcTotalUnread(newMap),
+      });
+    } else {
+      set({ currentConversation: conversation, messages: [] });
+    }
+
     api.put(`/conversations/${conversation.id}/read`).catch(() => {});
     socketService.markRead(conversation.id);
+
+    const res: any = await api.get(`/messages/${conversation.id}`);
+    set({ messages: res.data });
   },
 
   sendMessage: (content, type = 'text', senderId) => {
