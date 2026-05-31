@@ -419,6 +419,7 @@ export default function ChatPage() {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ layout: { type: 'spring', stiffness: 350, damping: 35 }, opacity: { duration: 0.2 }, height: { duration: 0.2 } }}
+                className="!overflow-hidden"
               >
                 <ConversationItem
                   conversation={conv}
