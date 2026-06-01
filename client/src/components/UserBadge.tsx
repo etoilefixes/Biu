@@ -6,13 +6,13 @@ interface Props {
   size?: 'sm' | 'md';
 }
 
-const BADGE_STYLES: Record<string, { bg: string; text: string; fill: string }> = {
-  OFFICIAL: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', fill: '#34d399' },
-  AI: { bg: 'bg-violet-500/20', text: 'text-violet-400', fill: '#a78bfa' },
-  SYSTEM: { bg: 'bg-blue-500/20', text: 'text-blue-400', fill: '#60a5fa' },
-  VERIFIED: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', fill: '#34d399' },
-  BOT: { bg: 'bg-amber-500/20', text: 'text-amber-400', fill: '#fbbf24' },
-  ENTERPRISE: { bg: 'bg-indigo-500/20', text: 'text-indigo-400', fill: '#818cf8' },
+const BADGE_FILL: Record<string, string> = {
+  OFFICIAL: '#1d4ed8',
+  AI: '#f59e0b',
+  SYSTEM: '#3b82f6',
+  VERIFIED: '#1d4ed8',
+  BOT: '#f59e0b',
+  ENTERPRISE: '#6366f1',
 };
 
 const OFFICIAL_PATH = 'M921.569608 320.364425c-50.833759-108.726284-140.957359-191.143365-253.80245-232.086869-112.863511-40.924061-234.838539-35.475979-343.584266 15.375175-19.437701 9.092076-27.826765 32.231075-18.73469 51.687197 9.111518 19.456121 32.268938 27.826765 51.686173 18.734689 89.878007-42.044582 190.802604-46.561455 284.115849-12.69923 93.313246 33.843806 167.853939 102.007255 209.897498 191.922101 86.784552 185.581696 6.396687 407.211399-179.185009 494.013347-90.143043 42.119283-191.238532 46.599318-284.760532 12.603039-93.160773-33.901111-167.492712-102.007255-209.251791-191.751208-52.826136-113.51024-53.679573-222.995817-2.315742-292.884561 24.694425-33.598212 59.392692-52.768831 88.073918-48.972364 25.946952 3.454682 39.61423 25.435299 46.50415 43.258223 0.057305 0.170892 0.170892 0.303922 0.228197 0.455371 0.075725 0.208754 0.113587 0.417509 0.190335 0.60682l165.480892 393.050888a38.938847 38.938847 0 0 0 35.628452 23.783683h0.207731c15.470343 0 29.497824-9.188266 35.666314-23.385617l170.662915-393.050887c8.541537-19.702738-0.493234-42.595121-20.178575-51.155077-19.7406-8.523117-42.574654 0.512676-51.154054 20.177551L512.497838 649.712455 382.304637 340.446809c-0.095167-0.246617-0.26606-0.435928-0.379646-0.682545-20.348444-51.059909-59.564607-84.069721-107.947548-90.52269-57.476039-7.611352-119.090329 23.00597-160.982438 79.988776-68.447928 93.104491-70.517053 232.067426-5.543249 371.734396 50.547233 108.612697 140.463102 191.011358 253.175163 232.012168 50.187029 18.259876 102.178147 27.351951 154.035212 27.351951 64.934918 0 129.642662-14.255679 190.231599-42.59512 224.419236-104.969727 321.625138-372.951107 216.675878-597.36932z';
@@ -39,23 +39,14 @@ function BadgeSvgIcon({ type, fill, size }: { type: string; fill: string; size: 
 export default function UserBadge({ badges, size = 'sm' }: Props) {
   if (!badges || badges.length === 0) return null;
 
-  const px = size === 'sm' ? 'px-2' : 'px-2.5';
-  const py = size === 'sm' ? 'py-0.5' : 'py-1';
-  const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
-  const iconSize = size === 'sm' ? 12 : 14;
+  const iconSize = size === 'sm' ? 14 : 16;
 
   return (
     <span className="inline-flex items-center gap-1">
       {badges.map((badge) => {
-        const style = BADGE_STYLES[badge.type] || { bg: 'bg-gray-500/20', text: 'text-gray-400', fill: '#9ca3af' };
+        const fill = BADGE_FILL[badge.type] || '#6b7280';
         return (
-          <span
-            key={badge.type}
-            className={`${px} ${py} rounded-md ${style.bg} ${style.text} ${textSize} font-display font-600 inline-flex items-center gap-0.5`}
-          >
-            <BadgeSvgIcon type={badge.type} fill={style.fill} size={iconSize} />
-            {badge.label}
-          </span>
+          <BadgeSvgIcon key={badge.type} type={badge.type} fill={fill} size={iconSize} />
         );
       })}
     </span>

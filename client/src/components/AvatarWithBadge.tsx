@@ -11,10 +11,10 @@ interface Props {
 }
 
 const BADGE_BG: Record<string, string> = {
-  OFFICIAL: 'bg-emerald-500',
-  AI: 'bg-violet-500',
+  OFFICIAL: 'bg-blue-700',
+  AI: 'bg-amber-400',
   SYSTEM: 'bg-blue-500',
-  VERIFIED: 'bg-emerald-500',
+  VERIFIED: 'bg-blue-700',
   BOT: 'bg-amber-500',
   ENTERPRISE: 'bg-indigo-500',
 };

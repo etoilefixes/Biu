@@ -468,11 +468,8 @@ export default function ChatPage() {
           <>
             <div className="h-14 glass-strong flex items-center px-6 border-b border-white/5">
               <h2 className="text-white font-display font-600 text-sm tracking-wide">{convDisplayName(currentConversation)}</h2>
-              {isSystemConversation && (
-                <UserBadge
-                  badges={[{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]}
-                  size="sm"
-                />
+              {currentConversation.type === 'private' && otherUser && (
+                <UserBadge badges={otherUser.user?.badges} size="sm" />
               )}
               {currentConversation.type === 'group' && (
                 <span className="ml-2 text-gray-500 text-xs font-body">

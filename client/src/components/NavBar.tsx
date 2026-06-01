@@ -5,6 +5,8 @@ import { useFriendStore } from '../store/friendStore';
 import { useChatStore } from '../store/chatStore';
 import Toast from './Toast';
 import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX } from './Icons';
+import AvatarWithBadge from './AvatarWithBadge';
+import UserBadge from './UserBadge';
 
 function formatBadge(count: number): string {
   if (count <= 0) return '';
@@ -116,11 +118,16 @@ export default function NavBar() {
           className="fixed left-[76px] top-4 w-72 glass-strong rounded-2xl p-5 z-50 shadow-2xl animate-scale-in shadow-glow"
         >
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-biu-primary to-biu-secondary flex items-center justify-center text-white text-lg font-display font-700">
-              {user?.nickname?.[0] || 'B'}
-            </div>
+            <AvatarWithBadge
+              fallback={user?.nickname?.[0] || 'B'}
+              badges={user?.badges}
+              size="lg"
+            />
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium font-display truncate">{user?.nickname}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-white font-medium font-display truncate">{user?.nickname}</p>
+                <UserBadge badges={user?.badges} size="sm" />
+              </div>
               <p className="text-biu-primary/70 text-xs font-display">{user?.biuId}</p>
             </div>
           </div>
@@ -181,11 +188,16 @@ export default function NavBar() {
           </div>
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-biu-primary to-biu-secondary flex items-center justify-center text-white text-sm font-display font-700 shrink-0">
-                {user?.nickname?.[0] || 'B'}
-              </div>
+              <AvatarWithBadge
+                fallback={user?.nickname?.[0] || 'B'}
+                badges={user?.badges}
+                size="md"
+              />
               <div className="flex-1 min-w-0">
-                <p className="text-white font-display font-600 text-sm truncate">{user?.nickname}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-white font-display font-600 text-sm truncate">{user?.nickname}</p>
+                  <UserBadge badges={user?.badges} size="sm" />
+                </div>
                 <p className="text-biu-primary/60 text-[11px] font-display">{user?.biuId}</p>
               </div>
             </div>
@@ -278,11 +290,15 @@ export default function NavBar() {
         <button
           ref={avatarRef}
           onClick={() => { setShowProfile(!showProfile); setShowSettings(false); }}
-          className={`w-10 h-10 rounded-xl bg-gradient-to-br from-biu-primary to-biu-secondary flex items-center justify-center text-white text-sm font-display font-700 mb-4 transition-all duration-200 ${
+          className={`relative mb-4 transition-all duration-200 ${
             showProfile ? 'ring-2 ring-biu-primary shadow-glow' : 'hover:shadow-glow hover:scale-105'
           }`}
         >
-          {user?.nickname?.[0] || 'B'}
+          <AvatarWithBadge
+            fallback={user?.nickname?.[0] || 'B'}
+            badges={user?.badges}
+            size="md"
+          />
         </button>
         {items.map((item) => {
           const badge = item.path === '/chat'
