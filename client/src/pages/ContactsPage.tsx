@@ -7,6 +7,7 @@ import api from '../services/api';
 import GlassCard from '../components/GlassCard';
 import Toast from '../components/Toast';
 import UserBadge from '../components/UserBadge';
+import AvatarWithBadge from '../components/AvatarWithBadge';
 import { IconSearch, IconChat, IconCheck, IconX, IconTrash, IconAddFriend, IconFriendRequest, IconContacts } from '../components/Icons';
 import { User, FriendRequest } from '@biu/shared';
 
@@ -167,9 +168,11 @@ export default function ContactsPage() {
         >
           <GlassCard className="w-64 p-4">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-biu-primary/30 to-biu-primary/10 flex items-center justify-center text-white text-lg font-display font-700">
-                {previewUser.nickname[0]}
-              </div>
+              <AvatarWithBadge
+                fallback={previewUser.nickname[0]}
+                badges={(previewUser as any).badges}
+                size="lg"
+              />
               <div className="min-w-0">
                 <p className="text-white font-display font-600 truncate">{previewUser.nickname}</p>
                 <p className="text-biu-primary/60 text-xs font-display">{previewUser.biuId}</p>
@@ -273,9 +276,12 @@ export default function ContactsPage() {
                       <div className="flex items-center gap-3">
                         <button
                           onClick={(e) => handleAvatarClick(u, e)}
-                          className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-secondary/30 to-biu-secondary/10 flex items-center justify-center text-white text-sm font-display font-600 shrink-0"
+                          className="shrink-0"
                         >
-                          {u.nickname[0]}
+                          <AvatarWithBadge
+                            fallback={u.nickname[0]}
+                            size="md"
+                          />
                         </button>
                         <span className="text-white font-medium font-display text-sm">{u.nickname}</span>
                       </div>
@@ -318,13 +324,14 @@ export default function ContactsPage() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={(e) => handleAvatarClick(f, e)}
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-display font-600 shrink-0 ${
-                        (f as any).isSystem
-                          ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
-                          : 'bg-gradient-to-br from-biu-primary/30 to-biu-primary/10'
-                      }`}
+                      className="shrink-0"
                     >
-                      {(f as any).isSystem ? '🔔' : f.nickname[0]}
+                      <AvatarWithBadge
+                        fallback={(f as any).isSystem ? '🔔' : f.nickname[0]}
+                        isSystem={(f as any).isSystem}
+                        badges={(f as any).badges}
+                        size="md"
+                      />
                     </button>
                     <div className="flex items-center gap-1.5">
                       <span className="text-white font-medium font-display text-sm">{f.nickname}</span>

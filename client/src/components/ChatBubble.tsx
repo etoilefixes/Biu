@@ -3,6 +3,7 @@ import { Message } from '@biu/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import UserBadge from './UserBadge';
+import AvatarWithBadge from './AvatarWithBadge';
 
 interface Props {
   message: Message;
@@ -88,9 +89,13 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
         onContextMenu={handleContextMenu}
       >
         {!isSelf && (
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-display font-600 mr-3 shrink-0 mt-0.5 ${isSystem ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-gradient-to-br from-biu-secondary/40 to-biu-secondary/20'}`}>
-            {isSystem ? '🔔' : (message.sender?.nickname?.[0] || '?')}
-          </div>
+          <AvatarWithBadge
+            fallback={isSystem ? '🔔' : (message.sender?.nickname?.[0] || '?')}
+            isSystem={isSystem}
+            badges={(message.sender as any)?.badges}
+            size="md"
+            className="mr-3 mt-0.5"
+          />
         )}
         <div className="max-w-[60%] min-w-0">
           {!isSelf && message.sender?.nickname && (

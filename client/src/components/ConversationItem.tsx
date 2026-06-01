@@ -2,6 +2,7 @@ import React, { useRef, useCallback } from 'react';
 import { Conversation, LastMessage } from '@biu/shared';
 import { IconDeleteSwipe } from './Icons';
 import UserBadge from './UserBadge';
+import AvatarWithBadge from './AvatarWithBadge';
 
 interface Props {
   conversation: Conversation;
@@ -54,7 +55,7 @@ export default function ConversationItem({
         ? 'Biu 系统'
         : otherMember?.user?.nickname || '未知用户';
 
-  const avatar = isSystemConv
+  const avatarFallback = isSystemConv
     ? '🔔'
     : conversation.type === 'group'
       ? conversation.name?.[0] || '群'
@@ -63,6 +64,8 @@ export default function ConversationItem({
   const systemBadges = isSystemConv
     ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
     : [];
+
+  const otherBadges = otherMember?.user ? (otherMember.user as any).badges : undefined;
 
   const lastMsg = conversation.lastMessage as LastMessage | null | undefined;
   const isSelf = lastMsg?.senderId === currentUserId;
@@ -222,11 +225,14 @@ export default function ConversationItem({
       >
         {active && <div className="absolute inset-0 bg-biu-primary/10 pointer-events-none" />}
         <div className="relative shrink-0">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-display font-600 ${isSystemConv ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-gradient-to-br from-biu-secondary/30 to-biu-secondary/10'}`}>
-            {avatar}
-          </div>
+          <AvatarWithBadge
+            fallback={avatarFallback}
+            isSystem={isSystemConv}
+            badges={isSystemConv ? systemBadges : otherBadges}
+            size="md"
+          />
           {badge && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none">
+            <span className="absolute -top-1.5 -left-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none">
               {badge}
             </span>
           )}
