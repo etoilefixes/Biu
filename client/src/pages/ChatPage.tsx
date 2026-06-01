@@ -65,21 +65,28 @@ export default function ChatPage() {
     });
     socketService.onChatError((data) => {
       const { messages } = useChatStore.getState();
-      const sendingMsg = messages.find(
+      const sendingMsgs = messages.filter(
         (m) =>
           (m as any)._status === 'sending' &&
           m.conversationId === data.conversationId
       );
-      if (sendingMsg) {
-        markMessageFailed(sendingMsg.id);
+      if (sendingMsgs.length === 1) {
+        markMessageFailed(sendingMsgs[0].id);
+      } else if (sendingMsgs.length > 1) {
+        const latest = sendingMsgs[sendingMsgs.length - 1];
+        markMessageFailed(latest.id);
       }
       setToast({ message: data.message || '消息发送失败', type: 'error' });
     });
+    socketService.onChatAck((_data) => {
+    });
+    useChatStore.getState().cleanupStaleSending();
     return () => {
       socketService.offMessage();
       socketService.offTyping();
       socketService.offUnread();
       socketService.offChatError();
+      socketService.offChatAck();
     };
   }, []);
 

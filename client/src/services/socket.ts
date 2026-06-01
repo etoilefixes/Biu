@@ -82,6 +82,11 @@ class SocketService {
     this.socket?.on('chat:error', callback);
   }
 
+  onChatAck(callback: (data: { messageId: string; conversationId: string }) => void) {
+    this.socket?.off('chat:ack');
+    this.socket?.on('chat:ack', callback);
+  }
+
   offMessage() {
     this.socket?.off('chat:message');
   }
@@ -100,6 +105,10 @@ class SocketService {
 
   offChatError() {
     this.socket?.off('chat:error');
+  }
+
+  offChatAck() {
+    this.socket?.off('chat:ack');
   }
 
   sendMessage(data: { conversationId: string; content: string; type: string }) {

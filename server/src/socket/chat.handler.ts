@@ -15,6 +15,8 @@ export function registerChatHandlers(io: Server, socket: Socket) {
         data.cardData || null
       );
 
+      socket.emit('chat:ack', { messageId: message.id, conversationId: data.conversationId });
+
       const members = await getConversationMemberIds(data.conversationId);
       for (const memberId of members) {
         const socketId = await getSocketId(memberId);

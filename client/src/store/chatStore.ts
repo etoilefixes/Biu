@@ -7,6 +7,14 @@ interface UnreadMap {
   [conversationId: string]: number;
 }
 
+interface PendingAck {
+  tempId: string;
+  conversationId: string;
+  content: string;
+  timer: ReturnType<typeof setTimeout>;
+  retryCount: number;
+}
+
 interface ChatState {
   conversations: Conversation[];
   currentConversation: Conversation | null;
@@ -31,6 +39,7 @@ interface ChatState {
   setTyping: (conversationId: string, userId: string) => void;
   clearTyping: (conversationId: string) => void;
   reset: () => void;
+  cleanupStaleSending: () => void;
 }
 
 function calcTotalUnread(unreadMap: UnreadMap): number {
@@ -46,6 +55,19 @@ function sortConversations(conversations: Conversation[]): Conversation[] {
 }
 
 let tempIdCounter = 0;
+
+const pendingAcks = new Map<string, PendingAck>();
+
+const ACK_TIMEOUT_MS = 10000;
+const MAX_RETRY_COUNT = 1;
+
+function clearPendingAck(tempId: string) {
+  const pending = pendingAcks.get(tempId);
+  if (pending) {
+    clearTimeout(pending.timer);
+    pendingAcks.delete(tempId);
+  }
+}
 
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
@@ -116,19 +138,50 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     get().updateConversationLastMessage(currentConversation.id, optimisticMessage);
 
+    const ackTimer = setTimeout(() => {
+      const { messages } = get();
+      const stillSending = messages.find((m) => m.id === tempId && (m as any)._status === 'sending');
+      if (!stillSending) {
+        clearPendingAck(tempId);
+        return;
+      }
+
+      const pending = pendingAcks.get(tempId);
+      if (pending && pending.retryCount < MAX_RETRY_COUNT) {
+        pending.retryCount++;
+        socketService.sendMessage({
+          conversationId: currentConversation.id,
+          content,
+          type,
+        });
+
+        pending.timer = setTimeout(() => {
+          const { messages: msgs2 } = get();
+          const still = msgs2.find((m) => m.id === tempId && (m as any)._status === 'sending');
+          if (still) {
+            get().markMessageFailed(tempId);
+          }
+          clearPendingAck(tempId);
+        }, ACK_TIMEOUT_MS);
+      } else {
+        get().markMessageFailed(tempId);
+        clearPendingAck(tempId);
+      }
+    }, ACK_TIMEOUT_MS);
+
+    pendingAcks.set(tempId, {
+      tempId,
+      conversationId: currentConversation.id,
+      content,
+      timer: ackTimer,
+      retryCount: 0,
+    });
+
     socketService.sendMessage({
       conversationId: currentConversation.id,
       content,
       type,
     });
-
-    setTimeout(() => {
-      const { messages } = get();
-      const stillSending = messages.find((m) => m.id === tempId && (m as any)._status === 'sending');
-      if (stillSending) {
-        get().markMessageFailed(tempId);
-      }
-    }, 15000);
   },
 
   addMessage: (message) => {
@@ -147,6 +200,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     );
 
     if (optimisticIndex !== -1) {
+      const matchedTempId = messages[optimisticIndex].id;
+      clearPendingAck(matchedTempId);
+
       set({
         messages: messages.map((m, i) => (i === optimisticIndex ? message : m)),
       });
@@ -158,10 +214,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   removeMessage: (tempId) => {
+    clearPendingAck(tempId);
     set((state) => ({ messages: state.messages.filter((m) => m.id !== tempId) }));
   },
 
   markMessageFailed: (tempId) => {
+    clearPendingAck(tempId);
     set((state) => ({
       messages: state.messages.map((m) =>
         m.id === tempId ? { ...m, _status: 'failed' } : m
@@ -170,6 +228,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   replaceTempMessage: (tempId, realMessage) => {
+    clearPendingAck(tempId);
     set((state) => ({
       messages: state.messages.map((m) => (m.id === tempId ? realMessage : m)),
     }));
@@ -265,6 +324,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   reset: () => {
+    pendingAcks.forEach((pending) => clearTimeout(pending.timer));
+    pendingAcks.clear();
     set({
       conversations: [],
       currentConversation: null,
@@ -273,5 +334,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
       unreadMap: {},
       totalUnread: 0,
     });
+  },
+
+  cleanupStaleSending: () => {
+    const { messages } = get();
+    const now = Date.now();
+    const STALE_THRESHOLD_MS = 30000;
+    let changed = false;
+
+    const updated = messages.map((m) => {
+      if ((m as any)._status !== 'sending') return m;
+
+      const msgTime = new Date(m.createdAt).getTime();
+      if (now - msgTime > STALE_THRESHOLD_MS) {
+        clearPendingAck(m.id);
+        changed = true;
+        return { ...m, _status: 'failed' as const };
+      }
+      return m;
+    });
+
+    if (changed) {
+      set({ messages: updated });
+    }
   },
 }));
