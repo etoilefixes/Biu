@@ -17,8 +17,10 @@ export async function searchUsers(keyword: string, currentUserId: string) {
       nickname: true,
       avatar: true,
       status: true,
+      isSystem: true,
       createdAt: true,
       updatedAt: true,
+      badges: { include: { badge: true } },
     },
     take: 20,
   });
@@ -26,6 +28,13 @@ export async function searchUsers(keyword: string, currentUserId: string) {
   return users.map((u) => ({
     ...u,
     status: u.status as 'online' | 'offline' | 'away',
+    isSystem: u.isSystem || false,
+    badges: u.badges.map((ub: any) => ({
+      type: ub.badge.type,
+      label: ub.badge.label,
+      icon: ub.badge.icon,
+      color: ub.badge.color,
+    })),
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString(),
   }));
@@ -42,14 +51,23 @@ export async function updateProfile(userId: string, data: { nickname?: string; a
       nickname: true,
       avatar: true,
       status: true,
+      isSystem: true,
       createdAt: true,
       updatedAt: true,
+      badges: { include: { badge: true } },
     },
   });
 
   return {
     ...user,
     status: user.status as 'online' | 'offline' | 'away',
+    isSystem: user.isSystem || false,
+    badges: user.badges.map((ub: any) => ({
+      type: ub.badge.type,
+      label: ub.badge.label,
+      icon: ub.badge.icon,
+      color: ub.badge.color,
+    })),
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };

@@ -92,7 +92,7 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
           <AvatarWithBadge
             fallback={isSystem ? '🔔' : (message.sender?.nickname?.[0] || '?')}
             isSystem={isSystem}
-            badges={(message.sender as any)?.badges}
+            badges={message.sender?.badges}
             size="md"
             className="mr-3 mt-0.5"
           />
@@ -101,7 +101,7 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
           {!isSelf && message.sender?.nickname && (
             <div className="flex items-center gap-1.5 mb-1 px-1">
               <p className="text-gray-500 text-xs font-body">{message.sender.nickname}</p>
-              <UserBadge badges={(message.sender as any).badges} size="sm" />
+              <UserBadge badges={message.sender?.badges} size="sm" />
             </div>
           )}
           {isCard ? (

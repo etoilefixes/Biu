@@ -46,7 +46,7 @@ export default function ConversationItem({
     ? conversation.members.find((m) => m.userId !== currentUserId)
     : null;
 
-  const isSystemConv = !!(otherMember?.user as any)?.isSystem;
+  const isSystemConv = !!otherMember?.user?.isSystem;
 
   const displayName =
     conversation.type === 'group'
@@ -65,7 +65,7 @@ export default function ConversationItem({
     ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
     : [];
 
-  const otherBadges = otherMember?.user ? (otherMember.user as any).badges : undefined;
+  const otherBadges = otherMember?.user ? otherMember.user.badges : undefined;
 
   const lastMsg = conversation.lastMessage as LastMessage | null | undefined;
   const isSelf = lastMsg?.senderId === currentUserId;

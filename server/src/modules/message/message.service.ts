@@ -23,7 +23,7 @@ export async function getMessages(
     where,
     include: {
       sender: {
-        select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
+        select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -45,6 +45,12 @@ export async function getMessages(
         ...m.sender,
         status: m.sender.status as 'online' | 'offline' | 'away',
         isSystem: m.sender.isSystem || false,
+        badges: m.sender.badges.map((ub: any) => ({
+          type: ub.badge.type,
+          label: ub.badge.label,
+          icon: ub.badge.icon,
+          color: ub.badge.color,
+        })),
       },
     }));
 }
@@ -76,7 +82,7 @@ export async function createMessage(
     },
     include: {
       sender: {
-        select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
+        select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
       },
     },
   });
@@ -94,6 +100,12 @@ export async function createMessage(
       ...message.sender,
       status: message.sender.status as 'online' | 'offline' | 'away',
       isSystem: message.sender.isSystem || false,
+      badges: message.sender.badges.map((ub: any) => ({
+        type: ub.badge.type,
+        label: ub.badge.label,
+        icon: ub.badge.icon,
+        color: ub.badge.color,
+      })),
     },
   };
 }

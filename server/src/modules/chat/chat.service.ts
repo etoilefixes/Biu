@@ -9,7 +9,7 @@ export async function getConversations(userId: string) {
           members: {
             include: {
               user: {
-                select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
+                select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
               },
             },
           },
@@ -59,6 +59,12 @@ export async function getConversations(userId: string) {
           ...mem.user,
           status: mem.user.status as 'online' | 'offline' | 'away',
           isSystem: mem.user.isSystem || false,
+          badges: mem.user.badges.map((ub: any) => ({
+            type: ub.badge.type,
+            label: ub.badge.label,
+            icon: ub.badge.icon,
+            color: ub.badge.color,
+          })),
         },
       })),
       lastMessage: lastMsg
@@ -213,7 +219,7 @@ export async function createConversation(
       members: {
         include: {
           user: {
-            select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
+            select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
           },
         },
       },
@@ -235,6 +241,12 @@ export async function createConversation(
         ...m.user,
         status: m.user.status as 'online' | 'offline' | 'away',
         isSystem: m.user.isSystem || false,
+        badges: m.user.badges.map((ub: any) => ({
+          type: ub.badge.type,
+          label: ub.badge.label,
+          icon: ub.badge.icon,
+          color: ub.badge.color,
+        })),
       },
     })),
   };
@@ -255,7 +267,7 @@ export async function getConversationDetail(conversationId: string, userId: stri
       members: {
         include: {
           user: {
-            select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
+            select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
           },
         },
       },
@@ -281,6 +293,12 @@ export async function getConversationDetail(conversationId: string, userId: stri
         ...m.user,
         status: m.user.status as 'online' | 'offline' | 'away',
         isSystem: m.user.isSystem || false,
+        badges: m.user.badges.map((ub: any) => ({
+          type: ub.badge.type,
+          label: ub.badge.label,
+          icon: ub.badge.icon,
+          color: ub.badge.color,
+        })),
       },
     })),
   };

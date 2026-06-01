@@ -22,6 +22,13 @@ async function generateBiuId(): Promise<string> {
 }
 
 function formatUser(user: any) {
+  const badges = (user.badges || []).map((ub: any) => ({
+    type: ub.badge.type,
+    label: ub.badge.label,
+    icon: ub.badge.icon,
+    color: ub.badge.color,
+  }));
+
   return {
     id: user.id,
     biuId: user.biuId,
@@ -30,6 +37,7 @@ function formatUser(user: any) {
     avatar: user.avatar,
     status: user.status as 'online' | 'offline' | 'away',
     isSystem: user.isSystem || false,
+    badges,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
@@ -50,6 +58,7 @@ export async function register(data: { username: string; password: string; nickn
       passwordHash,
       nickname: data.nickname,
     },
+    include: { badges: { include: { badge: true } } },
   });
 
   const token = jwt.sign({ userId: user.id }, config.jwtSecret, {
@@ -83,8 +92,8 @@ export async function register(data: { username: string; password: string; nickn
 export async function login(data: { account: string; password: string }) {
   const isBiuId = data.account.toUpperCase().endsWith('BIU');
   const user = isBiuId
-    ? await prisma.user.findUnique({ where: { biuId: data.account.toUpperCase() } })
-    : await prisma.user.findUnique({ where: { username: data.account } });
+    ? await prisma.user.findUnique({ where: { biuId: data.account.toUpperCase() }, include: { badges: { include: { badge: true } } } })
+    : await prisma.user.findUnique({ where: { username: data.account }, include: { badges: { include: { badge: true } } } });
 
   if (!user) {
     throw new Error('账号或密码错误');
@@ -103,7 +112,7 @@ export async function login(data: { account: string; password: string }) {
 }
 
 export async function getMe(userId: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, include: { badges: { include: { badge: true } } } });
   if (!user) {
     throw new Error('用户不存在');
   }

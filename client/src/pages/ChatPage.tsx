@@ -149,12 +149,12 @@ export default function ChatPage() {
     if (!conv) return '';
     if (conv.type === 'group') return conv.name;
     const other = conv.members.find((m) => m.userId !== user?.id);
-    if ((other?.user as any)?.isSystem) return 'Biu 系统';
+    if (other?.user?.isSystem) return 'Biu 系统';
     return other?.user?.nickname || '未知用户';
   };
 
   const isSystemConversation = currentConversation?.type === 'private' &&
-    !!(currentConversation.members.find((m) => m.userId !== user?.id)?.user as any)?.isSystem;
+    !!currentConversation.members.find((m) => m.userId !== user?.id)?.user?.isSystem;
 
   const handleOpenGroupModal = async () => {
     setShowAddDropdown(false);

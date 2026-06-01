@@ -43,10 +43,17 @@ export async function sendFriendRequest(
   const request = await prisma.friendRequest.create({
     data: { fromUserId, toUserId, message: message || null },
     include: {
-      fromUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true } },
-      toUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true } },
+      fromUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } } },
+      toUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } } },
     },
   });
+
+  const mapBadges = (badges: any[]) => badges.map((ub: any) => ({
+    type: ub.badge.type,
+    label: ub.badge.label,
+    icon: ub.badge.icon,
+    color: ub.badge.color,
+  }));
 
   const result = {
     id: request.id,
@@ -55,8 +62,8 @@ export async function sendFriendRequest(
     status: request.status,
     message: request.message,
     createdAt: request.createdAt.toISOString(),
-    fromUser: { ...request.fromUser, status: request.fromUser.status as 'online' | 'offline' | 'away' },
-    toUser: { ...request.toUser, status: request.toUser.status as 'online' | 'offline' | 'away' },
+    fromUser: { ...request.fromUser, status: request.fromUser.status as 'online' | 'offline' | 'away', isSystem: request.fromUser.isSystem || false, badges: mapBadges(request.fromUser.badges) },
+    toUser: { ...request.toUser, status: request.toUser.status as 'online' | 'offline' | 'away', isSystem: request.toUser.isSystem || false, badges: mapBadges(request.toUser.badges) },
   };
 
   try {
@@ -132,7 +139,7 @@ export async function getFriendRequests(userId: string) {
   const received = await prisma.friendRequest.findMany({
     where: { toUserId: userId, status: 'pending' },
     include: {
-      fromUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true } },
+      fromUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } } },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -140,10 +147,17 @@ export async function getFriendRequests(userId: string) {
   const sent = await prisma.friendRequest.findMany({
     where: { fromUserId: userId, status: 'pending' },
     include: {
-      toUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true } },
+      toUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } } },
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  const mapBadges = (badges: any[]) => badges.map((ub: any) => ({
+    type: ub.badge.type,
+    label: ub.badge.label,
+    icon: ub.badge.icon,
+    color: ub.badge.color,
+  }));
 
   return {
     received: received.map((r) => ({
@@ -153,7 +167,7 @@ export async function getFriendRequests(userId: string) {
       status: r.status,
       message: r.message,
       createdAt: r.createdAt.toISOString(),
-      fromUser: { ...r.fromUser, status: r.fromUser.status as 'online' | 'offline' | 'away' },
+      fromUser: { ...r.fromUser, status: r.fromUser.status as 'online' | 'offline' | 'away', isSystem: r.fromUser.isSystem || false, badges: mapBadges(r.fromUser.badges) },
     })),
     sent: sent.map((r) => ({
       id: r.id,
@@ -162,7 +176,7 @@ export async function getFriendRequests(userId: string) {
       status: r.status,
       message: r.message,
       createdAt: r.createdAt.toISOString(),
-      toUser: { ...r.toUser, status: r.toUser.status as 'online' | 'offline' | 'away' },
+      toUser: { ...r.toUser, status: r.toUser.status as 'online' | 'offline' | 'away', isSystem: r.toUser.isSystem || false, badges: mapBadges(r.toUser.badges) },
     })),
   };
 }

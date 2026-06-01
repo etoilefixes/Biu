@@ -170,7 +170,7 @@ export default function ContactsPage() {
             <div className="flex items-center gap-3 mb-3">
               <AvatarWithBadge
                 fallback={previewUser.nickname[0]}
-                badges={(previewUser as any).badges}
+                badges={previewUser.badges}
                 size="lg"
               />
               <div className="min-w-0">
@@ -280,6 +280,7 @@ export default function ContactsPage() {
                         >
                           <AvatarWithBadge
                             fallback={u.nickname[0]}
+                            badges={u.badges}
                             size="md"
                           />
                         </button>
@@ -327,15 +328,15 @@ export default function ContactsPage() {
                       className="shrink-0"
                     >
                       <AvatarWithBadge
-                        fallback={(f as any).isSystem ? '🔔' : f.nickname[0]}
-                        isSystem={(f as any).isSystem}
-                        badges={(f as any).badges}
+                        fallback={f.isSystem ? '🔔' : f.nickname[0]}
+                        isSystem={f.isSystem}
+                        badges={f.badges}
                         size="md"
                       />
                     </button>
                     <div className="flex items-center gap-1.5">
                       <span className="text-white font-medium font-display text-sm">{f.nickname}</span>
-                      <UserBadge badges={(f as any).badges} size="sm" />
+                      <UserBadge badges={f.badges} size="sm" />
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -346,7 +347,7 @@ export default function ContactsPage() {
                     >
                       <IconChat size={16} />
                     </button>
-                    {!(f as any).isSystem && (
+                    {!f.isSystem && (
                       <button
                         onClick={() => handleDeleteFriend(f.id)}
                         className="p-2 rounded-lg text-biu-accent hover:bg-biu-accent/10 transition"
