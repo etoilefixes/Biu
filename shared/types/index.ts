@@ -5,8 +5,18 @@ export interface User {
   nickname: string;
   avatar: string | null;
   status: 'online' | 'offline' | 'away';
+  isSystem?: boolean;
+  badges?: Badge[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Badge {
+  type: string;
+  label: string;
+  icon: string | null;
+  color: string | null;
+  description?: string;
 }
 
 export interface Conversation {
@@ -25,7 +35,7 @@ export interface ConversationMember {
   conversationId: string;
   userId: string;
   joinedAt: string;
-  user?: User;
+  user?: User & { isSystem?: boolean };
 }
 
 export interface LastMessage {
@@ -41,7 +51,9 @@ export interface Message {
   conversationId: string;
   senderId: string;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: 'text' | 'image' | 'file' | 'card';
+  cardType?: string | null;
+  cardData?: any;
   createdAt: string;
   sender?: User;
 }
@@ -49,7 +61,7 @@ export interface Message {
 export interface ChatSendMessage {
   conversationId: string;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: 'text' | 'image' | 'file' | 'card';
 }
 
 export interface ChatReceiveMessage extends Message {

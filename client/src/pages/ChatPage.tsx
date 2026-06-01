@@ -10,6 +10,7 @@ import ChatBubble from '../components/ChatBubble';
 import EmojiPicker from '../components/EmojiPicker';
 import Toast from '../components/Toast';
 import GlassCard from '../components/GlassCard';
+import UserBadge from '../components/UserBadge';
 import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup, IconEmoji } from '../components/Icons';
 
 export default function ChatPage() {
@@ -147,8 +148,13 @@ export default function ChatPage() {
   const convDisplayName = (conv: typeof currentConversation) => {
     if (!conv) return '';
     if (conv.type === 'group') return conv.name;
-    return conv.members.find((m) => m.userId !== user?.id)?.user?.nickname || '未知用户';
+    const other = conv.members.find((m) => m.userId !== user?.id);
+    if ((other?.user as any)?.isSystem) return 'Biu 系统';
+    return other?.user?.nickname || '未知用户';
   };
+
+  const isSystemConversation = currentConversation?.type === 'private' &&
+    !!(currentConversation.members.find((m) => m.userId !== user?.id)?.user as any)?.isSystem;
 
   const handleOpenGroupModal = async () => {
     setShowAddDropdown(false);
@@ -462,6 +468,12 @@ export default function ChatPage() {
           <>
             <div className="h-14 glass-strong flex items-center px-6 border-b border-white/5">
               <h2 className="text-white font-display font-600 text-sm tracking-wide">{convDisplayName(currentConversation)}</h2>
+              {isSystemConversation && (
+                <UserBadge
+                  badges={[{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]}
+                  size="sm"
+                />
+              )}
               {currentConversation.type === 'group' && (
                 <span className="ml-2 text-gray-500 text-xs font-body">
                   ({currentConversation.members.length}人)
@@ -489,6 +501,11 @@ export default function ChatPage() {
               ))}
               <div ref={messagesEndRef} />
             </div>
+            {isSystemConversation ? (
+              <div className="px-4 py-6 glass-strong border-t border-white/5 text-center">
+                <p className="text-gray-500 text-sm font-body">系统通知，暂不支持发送消息</p>
+              </div>
+            ) : (
             <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/5">
               <div className="flex items-center gap-2 mb-2">
                 <div className="relative">
@@ -532,6 +549,7 @@ export default function ChatPage() {
                 </button>
               </div>
             </div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center animate-fade-in">

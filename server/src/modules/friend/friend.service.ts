@@ -176,8 +176,18 @@ export async function getFriends(userId: string) {
       ],
     },
     include: {
-      fromUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true } },
-      toUser: { select: { id: true, biuId: true, username: true, nickname: true, avatar: true, status: true } },
+      fromUser: {
+        select: {
+          id: true, biuId: true, username: true, nickname: true, avatar: true, status: true, isSystem: true,
+          badges: { include: { badge: true } },
+        },
+      },
+      toUser: {
+        select: {
+          id: true, biuId: true, username: true, nickname: true, avatar: true, status: true, isSystem: true,
+          badges: { include: { badge: true } },
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -185,13 +195,28 @@ export async function getFriends(userId: string) {
   return accepted.map((r) => {
     const friend = r.fromUserId === userId ? r.toUser : r.fromUser;
     return {
-      ...friend,
+      id: friend.id,
+      biuId: friend.biuId,
+      username: friend.username,
+      nickname: friend.nickname,
+      avatar: friend.avatar,
       status: friend.status as 'online' | 'offline' | 'away',
+      isSystem: friend.isSystem || false,
+      badges: friend.badges.map((ub: any) => ({
+        type: ub.badge.type,
+        label: ub.badge.label,
+        icon: ub.badge.icon,
+        color: ub.badge.color,
+      })),
     };
   });
 }
 
 export async function deleteFriend(userId: string, friendId: string) {
+  if (friendId === 'system') {
+    throw new Error('无法删除系统账号');
+  }
+
   const friendRequest = await prisma.friendRequest.findFirst({
     where: {
       OR: [

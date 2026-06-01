@@ -15,6 +15,7 @@ model User {
   nickname     String   @db.VarChar(100)
   avatar       String?  @db.VarChar(500)
   status       String   @default("offline") @db.VarChar(20)
+  isSystem     Boolean  @default(false) @map("is_system")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -22,6 +23,7 @@ model User {
   messages      Message[]
   sentFriendRequests     FriendRequest[] @relation("SentRequests")
   receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
+  badges        UserBadge[]
 
   @@map("users")
 }
@@ -57,12 +59,40 @@ model Message {
   senderId       String   @map("sender_id")
   content        String
   type           String   @default("text") @db.VarChar(20)
+  cardType       String?  @map("card_type") @db.VarChar(30)
+  cardData       String?  @map("card_data") @db.Text
   createdAt      DateTime @default(now()) @map("created_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
   sender       User         @relation(fields: [senderId], references: [id])
 
   @@map("messages")
+}
+
+model Badge {
+  id          String  @id @default(uuid())
+  type        String  @db.VarChar(20)
+  label       String  @db.VarChar(50)
+  icon        String? @db.VarChar(50)
+  color       String? @db.VarChar(20)
+  description String? @db.VarChar(200)
+
+  users UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  badgeId   String   @map("badge_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id])
+  badge Badge @relation(fields: [badgeId], references: [id])
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
 }
 
 model FriendRequest {

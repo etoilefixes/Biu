@@ -10,7 +10,9 @@ export function registerChatHandlers(io: Server, socket: Socket) {
         data.conversationId,
         socket.data.userId,
         data.content,
-        data.type || 'text'
+        data.type || 'text',
+        data.cardType || null,
+        data.cardData || null
       );
 
       const members = await getConversationMemberIds(data.conversationId);

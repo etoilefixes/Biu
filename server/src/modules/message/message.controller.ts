@@ -26,7 +26,9 @@ export async function create(req: AuthRequest, res: Response) {
       conversationId,
       req.userId!,
       req.body.content,
-      req.body.type
+      req.body.type,
+      req.body.cardType || null,
+      req.body.cardData || null
     );
     res.status(201).json({ code: 201, message: '发送成功', data: message });
   } catch (err: any) {

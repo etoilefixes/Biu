@@ -5,6 +5,7 @@ import { config } from '../../config';
 
 const SALT_ROUNDS = 10;
 const BIU_ID_START = 100001;
+const SYSTEM_USER_ID = 'system';
 
 async function generateBiuId(): Promise<string> {
   const lastUser = await prisma.user.findFirst({
@@ -28,6 +29,7 @@ function formatUser(user: any) {
     nickname: user.nickname,
     avatar: user.avatar,
     status: user.status as 'online' | 'offline' | 'away',
+    isSystem: user.isSystem || false,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
@@ -53,6 +55,27 @@ export async function register(data: { username: string; password: string; nickn
   const token = jwt.sign({ userId: user.id }, config.jwtSecret, {
     expiresIn: config.jwtExpiresIn as string,
   } as SignOptions);
+
+  await prisma.friendRequest.create({
+    data: {
+      fromUserId: SYSTEM_USER_ID,
+      toUserId: user.id,
+      status: 'accepted',
+    },
+  });
+
+  await prisma.conversation.create({
+    data: {
+      type: 'private',
+      creatorId: SYSTEM_USER_ID,
+      members: {
+        create: [
+          { userId: SYSTEM_USER_ID },
+          { userId: user.id },
+        ],
+      },
+    },
+  });
 
   return { token, user: formatUser(user) };
 }

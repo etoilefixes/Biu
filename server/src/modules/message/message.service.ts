@@ -23,7 +23,7 @@ export async function getMessages(
     where,
     include: {
       sender: {
-        select: { id: true, username: true, nickname: true, avatar: true, status: true },
+        select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -37,11 +37,14 @@ export async function getMessages(
       conversationId: m.conversationId,
       senderId: m.senderId,
       content: m.content,
-      type: m.type as 'text' | 'image' | 'file',
+      type: m.type as 'text' | 'image' | 'file' | 'card',
+      cardType: m.cardType,
+      cardData: m.cardData ? JSON.parse(m.cardData) : null,
       createdAt: m.createdAt.toISOString(),
       sender: {
         ...m.sender,
         status: m.sender.status as 'online' | 'offline' | 'away',
+        isSystem: m.sender.isSystem || false,
       },
     }));
 }
@@ -50,7 +53,9 @@ export async function createMessage(
   conversationId: string,
   senderId: string,
   content: string,
-  type: string = 'text'
+  type: string = 'text',
+  cardType?: string | null,
+  cardData?: any
 ) {
   const membership = await prisma.conversationMember.findFirst({
     where: { conversationId, userId: senderId },
@@ -66,10 +71,12 @@ export async function createMessage(
       senderId,
       content,
       type,
+      cardType: cardType || null,
+      cardData: cardData ? JSON.stringify(cardData) : null,
     },
     include: {
       sender: {
-        select: { id: true, username: true, nickname: true, avatar: true, status: true },
+        select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
       },
     },
   });
@@ -79,11 +86,14 @@ export async function createMessage(
     conversationId: message.conversationId,
     senderId: message.senderId,
     content: message.content,
-    type: message.type as 'text' | 'image' | 'file',
+    type: message.type as 'text' | 'image' | 'file' | 'card',
+    cardType: message.cardType,
+    cardData: message.cardData ? JSON.parse(message.cardData) : null,
     createdAt: message.createdAt.toISOString(),
     sender: {
       ...message.sender,
       status: message.sender.status as 'online' | 'offline' | 'away',
+      isSystem: message.sender.isSystem || false,
     },
   };
 }

@@ -1,6 +1,7 @@
 import React, { useRef, useCallback } from 'react';
 import { Conversation, LastMessage } from '@biu/shared';
 import { IconDeleteSwipe } from './Icons';
+import UserBadge from './UserBadge';
 
 interface Props {
   conversation: Conversation;
@@ -40,15 +41,28 @@ export default function ConversationItem({
   const isHorizontal = useRef<boolean | null>(null);
   const dragOffset = useRef(0);
 
+  const otherMember = conversation.type === 'private'
+    ? conversation.members.find((m) => m.userId !== currentUserId)
+    : null;
+
+  const isSystemConv = !!(otherMember?.user as any)?.isSystem;
+
   const displayName =
     conversation.type === 'group'
       ? conversation.name
-      : conversation.members.find((m) => m.userId !== currentUserId)?.user?.nickname || '未知用户';
+      : isSystemConv
+        ? 'Biu 系统'
+        : otherMember?.user?.nickname || '未知用户';
 
-  const avatar =
-    conversation.type === 'group'
+  const avatar = isSystemConv
+    ? '🔔'
+    : conversation.type === 'group'
       ? conversation.name?.[0] || '群'
-      : conversation.members.find((m) => m.userId !== currentUserId)?.user?.nickname?.[0] || '?';
+      : otherMember?.user?.nickname?.[0] || '?';
+
+  const systemBadges = isSystemConv
+    ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
+    : [];
 
   const lastMsg = conversation.lastMessage as LastMessage | null | undefined;
   const isSelf = lastMsg?.senderId === currentUserId;
@@ -182,17 +196,19 @@ export default function ConversationItem({
 
   return (
     <div className="relative overflow-hidden">
+      {!isSystemConv && (
+        <div
+          className="absolute right-0 top-0 bottom-0 w-[72px] flex items-center justify-center bg-red-600 cursor-pointer"
+          onClick={handleDelete}
+        >
+          <IconDeleteSwipe size={22} className="text-white" />
+        </div>
+      )}
       <div
-        className="absolute right-0 top-0 bottom-0 w-[72px] flex items-center justify-center bg-red-600 cursor-pointer"
-        onClick={handleDelete}
-      >
-        <IconDeleteSwipe size={22} className="text-white" />
-      </div>
-      <div
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
+        onTouchStart={isSystemConv ? undefined : handleTouchStart}
+        onTouchMove={isSystemConv ? undefined : handleTouchMove}
+        onTouchEnd={isSystemConv ? undefined : handleTouchEnd}
+        onMouseDown={isSystemConv ? undefined : handleMouseDown}
         onClick={handleClick}
         style={{
           transform: `translateX(${translateX}px)`,
@@ -206,7 +222,7 @@ export default function ConversationItem({
       >
         {active && <div className="absolute inset-0 bg-biu-primary/10 pointer-events-none" />}
         <div className="relative shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-secondary/30 to-biu-secondary/10 flex items-center justify-center text-white text-sm font-display font-600">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-display font-600 ${isSystemConv ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-gradient-to-br from-biu-secondary/30 to-biu-secondary/10'}`}>
             {avatar}
           </div>
           {badge && (
@@ -218,6 +234,7 @@ export default function ConversationItem({
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-center">
             <span className="text-white text-sm font-medium font-display truncate">{displayName}</span>
+            {isSystemConv && <UserBadge badges={systemBadges} size="sm" />}
           </div>
           <p className="text-gray-500 text-xs truncate mt-0.5 font-body">{preview}</p>
         </div>

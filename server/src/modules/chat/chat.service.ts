@@ -9,7 +9,7 @@ export async function getConversations(userId: string) {
           members: {
             include: {
               user: {
-                select: { id: true, username: true, nickname: true, avatar: true, status: true },
+                select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
               },
             },
           },
@@ -58,6 +58,7 @@ export async function getConversations(userId: string) {
         user: {
           ...mem.user,
           status: mem.user.status as 'online' | 'offline' | 'away',
+          isSystem: mem.user.isSystem || false,
         },
       })),
       lastMessage: lastMsg
@@ -144,6 +145,14 @@ export async function deleteConversation(userId: string, conversationId: string)
     throw new Error('无权操作此会话');
   }
 
+  const systemMember = await prisma.conversationMember.findFirst({
+    where: { conversationId, user: { isSystem: true } },
+  });
+
+  if (systemMember) {
+    throw new Error('无法删除系统会话');
+  }
+
   await prisma.conversationMember.deleteMany({
     where: { conversationId, userId },
   });
@@ -204,7 +213,7 @@ export async function createConversation(
       members: {
         include: {
           user: {
-            select: { id: true, username: true, nickname: true, avatar: true, status: true },
+            select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
           },
         },
       },
@@ -225,6 +234,7 @@ export async function createConversation(
       user: {
         ...m.user,
         status: m.user.status as 'online' | 'offline' | 'away',
+        isSystem: m.user.isSystem || false,
       },
     })),
   };
@@ -245,7 +255,7 @@ export async function getConversationDetail(conversationId: string, userId: stri
       members: {
         include: {
           user: {
-            select: { id: true, username: true, nickname: true, avatar: true, status: true },
+            select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true },
           },
         },
       },
@@ -270,6 +280,7 @@ export async function getConversationDetail(conversationId: string, userId: stri
       user: {
         ...m.user,
         status: m.user.status as 'online' | 'offline' | 'away',
+        isSystem: m.user.isSystem || false,
       },
     })),
   };

@@ -6,6 +6,7 @@ import { useFriendStore } from '../store/friendStore';
 import api from '../services/api';
 import GlassCard from '../components/GlassCard';
 import Toast from '../components/Toast';
+import UserBadge from '../components/UserBadge';
 import { IconSearch, IconChat, IconCheck, IconX, IconTrash, IconAddFriend, IconFriendRequest, IconContacts } from '../components/Icons';
 import { User, FriendRequest } from '@biu/shared';
 
@@ -317,11 +318,18 @@ export default function ContactsPage() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={(e) => handleAvatarClick(f, e)}
-                      className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-primary/30 to-biu-primary/10 flex items-center justify-center text-white text-sm font-display font-600 shrink-0"
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-display font-600 shrink-0 ${
+                        (f as any).isSystem
+                          ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                          : 'bg-gradient-to-br from-biu-primary/30 to-biu-primary/10'
+                      }`}
                     >
-                      {f.nickname[0]}
+                      {(f as any).isSystem ? '🔔' : f.nickname[0]}
                     </button>
-                    <span className="text-white font-medium font-display text-sm">{f.nickname}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-white font-medium font-display text-sm">{f.nickname}</span>
+                      <UserBadge badges={(f as any).badges} size="sm" />
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
@@ -331,13 +339,15 @@ export default function ContactsPage() {
                     >
                       <IconChat size={16} />
                     </button>
-                    <button
-                      onClick={() => handleDeleteFriend(f.id)}
-                      className="p-2 rounded-lg text-biu-accent hover:bg-biu-accent/10 transition"
-                      title="删除好友"
-                    >
-                      <IconTrash size={14} />
-                    </button>
+                    {!(f as any).isSystem && (
+                      <button
+                        onClick={() => handleDeleteFriend(f.id)}
+                        className="p-2 rounded-lg text-biu-accent hover:bg-biu-accent/10 transition"
+                        title="删除好友"
+                      >
+                        <IconTrash size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

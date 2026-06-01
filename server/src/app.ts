@@ -11,6 +11,7 @@ import userRoutes from './modules/user/user.routes';
 import chatRoutes from './modules/chat/chat.routes';
 import messageRoutes from './modules/message/message.routes';
 import friendRoutes from './modules/friend/friend.routes';
+import badgeRoutes from './modules/badge/badge.routes';
 import { setupSocket } from './socket';
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/conversations', chatRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/friends', friendRoutes);
+app.use('/api/badges', badgeRoutes);
 
 app.use(errorHandler);
 
