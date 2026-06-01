@@ -489,18 +489,18 @@ export default function ChatPage() {
               ))}
               <div ref={messagesEndRef} />
             </div>
-            <div className="p-4 glass-strong border-t border-white/5">
-              <div className="flex gap-3 items-end">
+            <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/5">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="relative">
                   <button
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className={`p-3 rounded-xl transition-all duration-200 ${
+                    className={`p-1.5 rounded-lg transition-all duration-200 ${
                       showEmojiPicker
                         ? 'bg-biu-primary/20 text-biu-primary'
                         : 'text-gray-500 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <IconEmoji size={20} />
+                    <IconEmoji size={14} />
                   </button>
                   {showEmojiPicker && (
                     <EmojiPicker
@@ -512,6 +512,8 @@ export default function ChatPage() {
                     />
                   )}
                 </div>
+              </div>
+              <div className="flex gap-3 items-end">
                 <input
                   type="text"
                   value={input}

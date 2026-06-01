@@ -55,7 +55,7 @@ export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   }, [onClose]);
 
   return (
-    <div ref={ref} className="absolute bottom-full right-0 mb-2 z-50 animate-scale-in">
+    <div ref={ref} className="absolute bottom-full left-0 mb-2 z-50 animate-scale-in">
       <Picker
         data={data}
         onEmojiSelect={handleSelect}
