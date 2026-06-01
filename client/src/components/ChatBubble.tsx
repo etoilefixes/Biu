@@ -18,7 +18,7 @@ function CardMessage({ cardType, cardData }: { cardType?: string | null; cardDat
 
   if (cardType === 'welcome') {
     return (
-      <div className="rounded-xl bg-gradient-to-br from-biu-primary/10 to-biu-secondary/10 border border-biu-primary/20 p-4 min-w-[200px]">
+      <div className="rounded-xl bg-gradient-to-br from-biu-primary/10 to-biu-primary/5 border border-biu-primary/20 p-4 min-w-[200px]">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">👋</span>
           <span className="text-biu-primary font-display font-600 text-sm">{cardData.title || '欢迎'}</span>
@@ -114,16 +114,16 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
             </div>
           )}
           <div className="flex items-center gap-2 mt-1 px-1">
-            <p className="text-gray-600 text-[10px] font-body">
+            <p className="text-gray-600 text-[11px] font-body">
               {new Date(message.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
             </p>
             {status === 'sending' && (
-              <span className="text-gray-500 text-[10px] animate-pulse-subtle font-body">发送中</span>
+              <span className="text-gray-500 text-[11px] animate-pulse-subtle font-body">发送中</span>
             )}
             {status === 'failed' && (
               <button
                 onClick={handleRetry}
-                className="text-biu-accent text-[10px] hover:text-biu-accent/80 transition font-body"
+                className="text-biu-accent text-[11px] hover:text-biu-accent/80 transition font-body"
               >
                 发送失败，点击重试
               </button>

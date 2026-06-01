@@ -33,7 +33,7 @@ export default function LoginPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="w-[400px] animate-scale-in">
         <div className="text-center mb-10">
-          <h1 className="font-display text-5xl font-800 text-white mb-3 tracking-tight">
+          <h1 className="font-display text-5xl font-800 text-white mb-3 tracking-tightest">
             <span className="text-biu-primary">B</span>iu
           </h1>
           <p className="text-gray-500 text-sm font-body">登录你的账号</p>

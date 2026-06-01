@@ -7,7 +7,7 @@ module.exports = {
         biu: {
           primary: '#00D4AA',
           'primary-dim': '#00A888',
-          secondary: '#6366F1',
+          'primary-soft': '#00D4AA20',
           accent: '#FF3D71',
           dark: '#070B14',
           'dark-alt': '#0D1321',
@@ -19,6 +19,10 @@ module.exports = {
       fontFamily: {
         display: ['Sora', 'sans-serif'],
         body: ['DM Sans', 'sans-serif'],
+      },
+      letterSpacing: {
+        tightest: '-0.04em',
+        tighter: '-0.02em',
       },
       backdropBlur: {
         glass: '20px',

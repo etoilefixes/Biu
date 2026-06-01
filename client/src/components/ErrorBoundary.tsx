@@ -22,7 +22,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           <div className="text-center">
             <h2 className="text-xl mb-2">出了点问题</h2>
             <button
-              className="px-4 py-2 bg-biu-primary rounded-lg hover:bg-biu-secondary transition"
+              className="px-4 py-2 bg-biu-primary rounded-lg hover:bg-biu-primary-dim transition"
               onClick={() => this.setState({ hasError: false })}
             >
               重试

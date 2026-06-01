@@ -300,7 +300,7 @@ export default function ChatPage() {
               {addFriendResults.map((u) => (
                 <div key={u.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-secondary/30 to-biu-secondary/10 flex items-center justify-center text-white text-sm font-display font-600">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-primary/25 to-biu-primary/8 flex items-center justify-center text-white text-sm font-display font-600">
                       {u.nickname[0]}
                     </div>
                     <span className="text-white font-display text-sm">{u.nickname}</span>
@@ -558,10 +558,11 @@ export default function ChatPage() {
         ) : (
           <div className="flex-1 flex items-center justify-center animate-fade-in">
             <div className="text-center">
-              <div className="w-16 h-16 rounded-2xl bg-biu-primary/10 flex items-center justify-center mx-auto mb-4 animate-float">
-                <IconChat size={28} className="text-biu-primary" />
+              <div className="w-20 h-20 rounded-2xl bg-biu-primary/8 border border-biu-primary/15 flex items-center justify-center mx-auto mb-5 animate-float">
+                <IconChat size={32} className="text-biu-primary/70" />
               </div>
-              <p className="text-gray-500 text-sm font-body">选择一个会话开始聊天</p>
+              <p className="text-gray-400 text-sm font-display font-500 mb-1">选择一个会话</p>
+              <p className="text-gray-600 text-xs font-body">开始聊天</p>
             </div>
           </div>
         )}

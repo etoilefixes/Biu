@@ -298,7 +298,7 @@ export default function ContactsPage() {
                         )}
                         <button
                           onClick={() => handleStartChat(u)}
-                          className="p-2 rounded-lg bg-biu-secondary/10 text-biu-secondary hover:bg-biu-secondary/20 transition"
+                          className="p-2 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition"
                           title="发消息"
                         >
                           <IconChat size={16} />
@@ -407,7 +407,7 @@ export default function ContactsPage() {
                   <div className="space-y-2">
                     {sentRequests.filter((r) => r.status === 'pending').map((r) => (
                       <GlassCard key={r.id} className="flex items-center gap-3 p-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-secondary/30 to-biu-secondary/10 flex items-center justify-center text-white text-sm font-display font-600 shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-biu-primary/25 to-biu-primary/8 flex items-center justify-center text-white text-sm font-display font-600 shrink-0">
                           {r.toUser?.nickname?.[0] || '?'}
                         </div>
                         <div>

@@ -108,7 +108,6 @@ export default function NavBar() {
     { path: '/chat', icon: <IconChat size={20} />, label: '消息' },
     { path: '/contacts', icon: <IconContacts size={20} />, label: '联系人' },
   ];
-
   return (
     <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

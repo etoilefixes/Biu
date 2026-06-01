@@ -20,7 +20,7 @@ export default function Toast({ message, type = 'info', onClose }: ToastProps) {
   const styles: Record<string, string> = {
     error: 'bg-biu-accent/90 shadow-glow-accent',
     success: 'bg-biu-primary/90 shadow-glow',
-    info: 'bg-biu-secondary/90',
+    info: 'bg-biu-surface-light',
   };
 
   return (
