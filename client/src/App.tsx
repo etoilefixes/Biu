@@ -7,7 +7,6 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ChatPage from './pages/ChatPage';
 import ContactsPage from './pages/ContactsPage';
-import SettingsPage from './pages/SettingsPage';
 import AppLayout from './layouts/AppLayout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -40,7 +39,6 @@ export default function App() {
           >
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/contacts" element={<ContactsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to={isAuthenticated ? '/chat' : '/login'} />} />
         </Routes>

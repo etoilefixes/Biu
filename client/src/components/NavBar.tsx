@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useFriendStore } from '../store/friendStore';
 import { useChatStore } from '../store/chatStore';
 import Toast from './Toast';
-import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings } from './Icons';
+import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX } from './Icons';
 
 function formatBadge(count: number): string {
   if (count <= 0) return '';
@@ -19,12 +19,20 @@ export default function NavBar() {
   const { pendingRequestCount } = useFriendStore();
   const totalUnread = useChatStore((s) => s.totalUnread);
   const [showProfile, setShowProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
+  const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [messagePreview, setMessagePreview] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [notificationEnabled, setNotificationEnabled] = useState(true);
+  const [markdownEnabled, setMarkdownEnabled] = useState(true);
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -46,12 +54,20 @@ export default function NavBar() {
         }
         setShowProfile(false);
       }
+      if (
+        settingsRef.current &&
+        !settingsRef.current.contains(e.target as Node) &&
+        settingsBtnRef.current &&
+        !settingsBtnRef.current.contains(e.target as Node)
+      ) {
+        setShowSettings(false);
+      }
     }
-    if (showProfile) {
+    if (showProfile || showSettings) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showProfile, editing, nickname]);
+  }, [showProfile, showSettings, editing, nickname]);
 
   const handleSave = async () => {
     const trimmed = nickname.trim();
@@ -89,7 +105,6 @@ export default function NavBar() {
   const items = [
     { path: '/chat', icon: <IconChat size={20} />, label: '消息' },
     { path: '/contacts', icon: <IconContacts size={20} />, label: '联系人' },
-    { path: '/settings', icon: <IconSettings size={20} />, label: '设置' },
   ];
 
   return (
@@ -150,10 +165,119 @@ export default function NavBar() {
           </div>
         </div>
       )}
+      {showSettings && (
+        <div
+          ref={settingsRef}
+          className="fixed left-[76px] top-4 bottom-4 w-80 glass-strong rounded-2xl z-50 shadow-2xl animate-scale-in shadow-glow flex flex-col overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+            <h2 className="text-white font-display font-600 text-sm">设置</h2>
+            <button
+              onClick={() => setShowSettings(false)}
+              className="text-gray-500 hover:text-white transition"
+            >
+              <IconX size={16} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-biu-primary to-biu-secondary flex items-center justify-center text-white text-sm font-display font-700 shrink-0">
+                {user?.nickname?.[0] || 'B'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-display font-600 text-sm truncate">{user?.nickname}</p>
+                <p className="text-biu-primary/60 text-[11px] font-display">{user?.biuId}</p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-white/5">
+              <h3 className="text-gray-500 text-xs font-medium mb-3">消息</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white text-sm font-body">消息预览</p>
+                    <p className="text-gray-600 text-[11px] font-body">在会话列表中显示消息内容</p>
+                  </div>
+                  <button
+                    onClick={() => setMessagePreview(!messagePreview)}
+                    className={`w-10 h-6 rounded-full transition-all duration-200 relative ${messagePreview ? 'bg-biu-primary' : 'bg-white/10'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${messagePreview ? 'left-5' : 'left-1'}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white text-sm font-body">Markdown 渲染</p>
+                    <p className="text-gray-600 text-[11px] font-body">渲染消息中的 Markdown 格式</p>
+                  </div>
+                  <button
+                    onClick={() => setMarkdownEnabled(!markdownEnabled)}
+                    className={`w-10 h-6 rounded-full transition-all duration-200 relative ${markdownEnabled ? 'bg-biu-primary' : 'bg-white/10'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${markdownEnabled ? 'left-5' : 'left-1'}`} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-white/5">
+              <h3 className="text-gray-500 text-xs font-medium mb-3">通知</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white text-sm font-body">消息通知</p>
+                    <p className="text-gray-600 text-[11px] font-body">接收新消息时弹出通知</p>
+                  </div>
+                  <button
+                    onClick={() => setNotificationEnabled(!notificationEnabled)}
+                    className={`w-10 h-6 rounded-full transition-all duration-200 relative ${notificationEnabled ? 'bg-biu-primary' : 'bg-white/10'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${notificationEnabled ? 'left-5' : 'left-1'}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white text-sm font-body">提示音</p>
+                    <p className="text-gray-600 text-[11px] font-body">收到消息时播放提示音</p>
+                  </div>
+                  <button
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                    className={`w-10 h-6 rounded-full transition-all duration-200 relative ${soundEnabled ? 'bg-biu-primary' : 'bg-white/10'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${soundEnabled ? 'left-5' : 'left-1'}`} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-white/5">
+              <h3 className="text-gray-500 text-xs font-medium mb-3">关于</h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-400 text-sm font-body">版本</p>
+                  <p className="text-gray-600 text-sm font-body">1.0.0</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-400 text-sm font-body">构建</p>
+                  <p className="text-gray-600 text-sm font-body">Electron + React</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="px-5 py-4 border-t border-white/5">
+            <button
+              onClick={handleLogout}
+              className="w-full py-2.5 rounded-xl bg-biu-accent/10 text-biu-accent hover:bg-biu-accent/20 transition text-sm font-body flex items-center justify-center gap-2"
+            >
+              <IconLogout size={14} /> 退出登录
+            </button>
+          </div>
+        </div>
+      )}
       <div className="w-[60px] h-full glass flex flex-col items-center py-4 gap-2">
         <button
           ref={avatarRef}
-          onClick={() => setShowProfile(!showProfile)}
+          onClick={() => { setShowProfile(!showProfile); setShowSettings(false); }}
           className={`w-10 h-10 rounded-xl bg-gradient-to-br from-biu-primary to-biu-secondary flex items-center justify-center text-white text-sm font-display font-700 mb-4 transition-all duration-200 ${
             showProfile ? 'ring-2 ring-biu-primary shadow-glow' : 'hover:shadow-glow hover:scale-105'
           }`}
@@ -186,6 +310,19 @@ export default function NavBar() {
             </button>
           );
         })}
+        <div className="flex-1" />
+        <button
+          ref={settingsBtnRef}
+          onClick={() => { setShowSettings(!showSettings); setShowProfile(false); }}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+            showSettings
+              ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
+              : 'text-gray-500 hover:text-white hover:bg-white/5'
+          }`}
+          title="设置"
+        >
+          <IconSettings size={20} />
+        </button>
       </div>
     </>
   );
