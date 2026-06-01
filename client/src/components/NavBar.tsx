@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useFriendStore } from '../store/friendStore';
 import { useChatStore } from '../store/chatStore';
 import Toast from './Toast';
-import { IconChat, IconContacts, IconLogout, IconEdit } from './Icons';
+import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings } from './Icons';
 
 function formatBadge(count: number): string {
   if (count <= 0) return '';
@@ -89,6 +89,7 @@ export default function NavBar() {
   const items = [
     { path: '/chat', icon: <IconChat size={20} />, label: '消息' },
     { path: '/contacts', icon: <IconContacts size={20} />, label: '联系人' },
+    { path: '/settings', icon: <IconSettings size={20} />, label: '设置' },
   ];
 
   return (
