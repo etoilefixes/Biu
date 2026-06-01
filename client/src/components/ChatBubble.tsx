@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Message } from '@biu/shared';
+import { renderContentWithEmoji } from '../utils/emoji';
 
 interface Props {
   message: Message;
@@ -52,7 +53,7 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
             <p className="text-gray-500 text-xs mb-1 font-body px-1">{message.sender.nickname}</p>
           )}
           <div className={`px-3.5 py-2.5 ${isSelf ? 'bubble-self' : 'bubble-other'} ${status === 'failed' ? 'opacity-60' : ''}`}>
-            <p className="text-sm break-words font-body leading-relaxed">{message.content}</p>
+            <p className="text-sm break-words font-body leading-relaxed">{renderContentWithEmoji(message.content)}</p>
           </div>
           <div className="flex items-center gap-2 mt-1 px-1">
             <p className="text-gray-600 text-[10px] font-body">

@@ -7,9 +7,10 @@ import { socketService } from '../services/socket';
 import api from '../services/api';
 import ConversationItem from '../components/ConversationItem';
 import ChatBubble from '../components/ChatBubble';
+import EmojiPicker from '../components/EmojiPicker';
 import Toast from '../components/Toast';
 import GlassCard from '../components/GlassCard';
-import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup } from '../components/Icons';
+import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup, IconEmoji } from '../components/Icons';
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user);
@@ -33,6 +34,7 @@ export default function ChatPage() {
   } = useChatStore();
   const { friends, setFriends } = useFriendStore();
   const [input, setInput] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [sidebarWidth, setSidebarWidth] = useState(280);
@@ -474,12 +476,34 @@ export default function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
             <div className="p-4 glass-strong border-t border-white/5">
-              <div className="flex gap-3">
+              <div className="flex gap-3 items-end">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className={`p-3 rounded-xl transition-all duration-200 ${
+                      showEmojiPicker
+                        ? 'bg-biu-primary/20 text-biu-primary'
+                        : 'text-gray-500 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <IconEmoji size={20} />
+                  </button>
+                  {showEmojiPicker && (
+                    <EmojiPicker
+                      onSelect={(emoji) => {
+                        setInput((prev) => prev + emoji);
+                        setShowEmojiPicker(false);
+                      }}
+                      onClose={() => setShowEmojiPicker(false)}
+                    />
+                  )}
+                </div>
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onFocus={() => setShowEmojiPicker(false)}
                   placeholder="输入消息..."
                   className="flex-1 px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body"
                 />
