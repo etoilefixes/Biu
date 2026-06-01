@@ -109,6 +109,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       type: type as 'text',
       createdAt: new Date().toISOString(),
       _status: 'sending',
+      _tempSender: senderId || '',
     } as any;
 
     set((state) => ({ messages: [...state.messages, optimisticMessage] }));
@@ -120,6 +121,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       content,
       type,
     });
+
+    setTimeout(() => {
+      const { messages } = get();
+      const stillSending = messages.find((m) => m.id === tempId && (m as any)._status === 'sending');
+      if (stillSending) {
+        get().markMessageFailed(tempId);
+      }
+    }, 15000);
   },
 
   addMessage: (message) => {
@@ -132,7 +141,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         (m as any)._status === 'sending' &&
         m.conversationId === message.conversationId &&
         m.content === message.content &&
-        m.senderId === message.senderId
+        ((m as any)._tempSender === message.senderId ||
+          m.senderId === message.senderId ||
+          !m.senderId)
     );
 
     if (optimisticIndex !== -1) {

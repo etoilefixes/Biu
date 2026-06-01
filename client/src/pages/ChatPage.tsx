@@ -25,6 +25,7 @@ export default function ChatPage() {
     sendMessage,
     addMessage,
     removeMessage,
+    markMessageFailed,
     setUnread,
     setTyping,
     addConversationOptimistic,
@@ -61,10 +62,23 @@ export default function ChatPage() {
         setUnread(data.conversationId, data.count);
       }
     });
+    socketService.onChatError((data) => {
+      const { messages } = useChatStore.getState();
+      const sendingMsg = messages.find(
+        (m) =>
+          (m as any)._status === 'sending' &&
+          m.conversationId === data.conversationId
+      );
+      if (sendingMsg) {
+        markMessageFailed(sendingMsg.id);
+      }
+      setToast({ message: data.message || '消息发送失败', type: 'error' });
+    });
     return () => {
       socketService.offMessage();
       socketService.offTyping();
       socketService.offUnread();
+      socketService.offChatError();
     };
   }, []);
 

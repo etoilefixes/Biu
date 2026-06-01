@@ -3,25 +3,40 @@ import { ChatReceiveMessage } from '@biu/shared';
 
 class SocketService {
   private socket: Socket | null = null;
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
   connect(token: string) {
+    if (this.socket?.connected) {
+      return;
+    }
+
+    this.disconnect();
+
     this.socket = io('http://localhost:3001', {
       auth: { token },
       transports: ['websocket'],
     });
 
     this.socket.on('connect', () => {
-      console.log('Socket connected');
+      console.log('[Socket] connected, id:', this.socket?.id);
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Socket disconnected');
+    this.socket.on('disconnect', (reason) => {
+      console.log('[Socket] disconnected, reason:', reason);
+    });
+
+    this.socket.on('connect_error', (err) => {
+      console.error('[Socket] connect_error:', err.message);
     });
 
     this.startHeartbeat();
   }
 
   disconnect() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
@@ -29,8 +44,12 @@ class SocketService {
   }
 
   onMessage(callback: (message: ChatReceiveMessage) => void) {
+    console.log('[Socket] onMessage called, socket exists:', !!this.socket, 'connected:', this.socket?.connected);
     this.socket?.off('chat:message');
-    this.socket?.on('chat:message', callback);
+    this.socket?.on('chat:message', (data) => {
+      console.log('[Socket] chat:message received:', JSON.stringify(data).substring(0, 200));
+      callback(data);
+    });
   }
 
   onTyping(callback: (data: { conversationId: string; userId: string }) => void) {
@@ -58,6 +77,11 @@ class SocketService {
     this.socket?.on('friend:request', callback);
   }
 
+  onChatError(callback: (data: { message: string; conversationId: string }) => void) {
+    this.socket?.off('chat:error');
+    this.socket?.on('chat:error', callback);
+  }
+
   offMessage() {
     this.socket?.off('chat:message');
   }
@@ -74,6 +98,10 @@ class SocketService {
     this.socket?.off('friend:request');
   }
 
+  offChatError() {
+    this.socket?.off('chat:error');
+  }
+
   sendMessage(data: { conversationId: string; content: string; type: string }) {
     this.socket?.emit('chat:send', data);
   }
@@ -87,7 +115,7 @@ class SocketService {
   }
 
   private startHeartbeat() {
-    setInterval(() => {
+    this.heartbeatInterval = setInterval(() => {
       this.socket?.emit('user:heartbeat');
     }, 60000);
   }
