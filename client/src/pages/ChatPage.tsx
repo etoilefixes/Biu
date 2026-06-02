@@ -330,6 +330,7 @@ export default function ChatPage() {
     if (!conv) return '';
     if (conv.type === 'group') return conv.name;
     const other = conv.members.find((m) => m.userId !== user?.id);
+    if (other?.user?.isSystem && other?.user?.username?.startsWith('ai_role_')) return other?.user?.nickname || 'AI 角色';
     if (other?.user?.isSystem) return 'Biu团队';
     return other?.user?.nickname || '未知用户';
   };

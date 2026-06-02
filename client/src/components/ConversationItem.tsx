@@ -3,16 +3,7 @@ import { Conversation, LastMessage } from '@biu/shared';
 import { IconDeleteSwipe } from './Icons';
 import UserBadge from './UserBadge';
 import AvatarWithBadge from './AvatarWithBadge';
-
-// 处理消息预览文本，替换 @ 标签
-function formatPreviewText(text: string) {
-  return text.replace(/\[at:([^\]]+)\]/g, (match, userId) => {
-    if (userId === 'all') {
-      return '[@全体成员]';
-    }
-    return '[@用户]';
-  });
-}
+import { renderPreview } from '../utils/mention';
 
 interface Props {
   conversation: Conversation;
@@ -57,23 +48,30 @@ export default function ConversationItem({
     : null;
 
   const isSystemConv = !!otherMember?.user?.isSystem;
+  const isAiRoleConv = isSystemConv && otherMember?.user?.username?.startsWith('ai_role_');
 
   const displayName =
     conversation.type === 'group'
       ? conversation.name
-      : isSystemConv
-        ? 'Biu 系统'
-        : otherMember?.user?.nickname || '未知用户';
+      : isAiRoleConv
+        ? (otherMember?.user?.nickname || 'AI 角色')
+        : isSystemConv
+          ? 'Biu团队'
+          : otherMember?.user?.nickname || '未知用户';
 
-  const avatarFallback = isSystemConv
-    ? '🔔'
-    : conversation.type === 'group'
-      ? conversation.name?.[0] || '群'
-      : otherMember?.user?.nickname?.[0] || '?';
+  const avatarFallback = isAiRoleConv
+    ? (otherMember?.user?.nickname?.[0] || '🤖')
+    : isSystemConv
+      ? '🔔'
+      : conversation.type === 'group'
+        ? conversation.name?.[0] || '群'
+        : otherMember?.user?.nickname?.[0] || '?';
 
-  const systemBadges = isSystemConv
-    ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
-    : [];
+  const systemBadges = isAiRoleConv
+    ? [{ type: 'AI', label: 'AI', icon: 'bot', color: '#8B5CF6', description: 'AI 角色' }]
+    : isSystemConv
+      ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
+      : [];
 
   const otherBadges = otherMember?.user ? otherMember.user.badges : undefined;
 
@@ -82,7 +80,7 @@ export default function ConversationItem({
 
   let preview = '暂无消息';
   if (lastMsg) {
-    const formattedContent = formatPreviewText(lastMsg.content);
+    const formattedContent = renderPreview(lastMsg.content);
     if (isSelf) {
       if (conversation.type === 'group') {
         preview = `你: ${formattedContent}`;
@@ -98,9 +96,9 @@ export default function ConversationItem({
   // 添加 @ 提示前缀
   if (conversation.mentionType && unreadCount > 0) {
     if (conversation.mentionType === 'all') {
-      preview = `[@全体成员] ${preview}`;
+      preview = `@全体成员 ${preview}`;
     } else if (conversation.mentionType === 'me') {
-      preview = `[@我] ${preview}`;
+      preview = `@我 ${preview}`;
     }
   }
 
@@ -215,11 +213,13 @@ export default function ConversationItem({
     [conversation.id, onDelete]
   );
 
+  const canDelete = !isSystemConv || isAiRoleConv;
+
   const translateX = isOpened ? -DELETE_WIDTH : 0;
 
   return (
     <div className="relative overflow-hidden">
-      {!isSystemConv && (
+      {canDelete && (
         <div
           className="absolute right-0 top-0 bottom-0 w-[72px] flex items-center justify-center bg-red-600 cursor-pointer"
           onClick={handleDelete}
@@ -228,10 +228,10 @@ export default function ConversationItem({
         </div>
       )}
       <div
-        onTouchStart={isSystemConv ? undefined : handleTouchStart}
-        onTouchMove={isSystemConv ? undefined : handleTouchMove}
-        onTouchEnd={isSystemConv ? undefined : handleTouchEnd}
-        onMouseDown={isSystemConv ? undefined : handleMouseDown}
+        onTouchStart={canDelete ? handleTouchStart : undefined}
+        onTouchMove={canDelete ? handleTouchMove : undefined}
+        onTouchEnd={canDelete ? handleTouchEnd : undefined}
+        onMouseDown={canDelete ? handleMouseDown : undefined}
         onClick={handleClick}
         style={{
           transform: `translateX(${translateX}px)`,
@@ -247,7 +247,7 @@ export default function ConversationItem({
         <div className="relative shrink-0">
           <AvatarWithBadge
             fallback={avatarFallback}
-            isSystem={isSystemConv}
+            isSystem={isSystemConv && !isAiRoleConv}
             badges={isSystemConv ? systemBadges : otherBadges}
             size="md"
           />

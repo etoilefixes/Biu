@@ -4,8 +4,11 @@ import { useChatStore } from '../store/chatStore';
 import { socketService } from '../services/socket';
 import api from '../services/api';
 import ChatBubble from '../components/ChatBubble';
+import TimeSeparator from '../components/TimeSeparator';
+import NewMessageDivider from '../components/NewMessageDivider';
 import Toast from '../components/Toast';
 import { IconChat, IconSend } from '../components/Icons';
+import { formatSeparatorLabel, shouldShowSeparator } from '../utils/time';
 
 export default function AIChatPage() {
   const user = useAuthStore((s) => s.user);
@@ -13,6 +16,7 @@ export default function AIChatPage() {
     conversations,
     currentConversation,
     messages,
+    lastReadMessageId,
     loadConversations,
     selectConversation,
     sendMessage,
@@ -23,6 +27,7 @@ export default function AIChatPage() {
   const [input, setInput] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const newMessageDividerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadConversations();
@@ -47,8 +52,12 @@ export default function AIChatPage() {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (lastReadMessageId && newMessageDividerRef.current) {
+      newMessageDividerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, lastReadMessageId]);
 
   const handleSend = () => {
     if (!input.trim() || !currentConversation) return;
@@ -82,7 +91,8 @@ export default function AIChatPage() {
     if (!conv) return '';
     if (conv.type === 'group') return conv.name;
     const other = conv.members.find((m) => m.userId !== user?.id);
-    if (other?.user?.isSystem) return 'Biu 系统';
+    if (other?.user?.isSystem && other?.user?.username?.startsWith('ai_role_')) return other?.user?.nickname || 'AI 角色';
+    if (other?.user?.isSystem) return 'Biu团队';
     return other?.user?.nickname || '未知用户';
   };
 
@@ -118,16 +128,30 @@ export default function AIChatPage() {
               <h2 className="text-white font-display font-600 text-sm">{convDisplayName(currentConversation)}</h2>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {messages.map((msg) => (
-                <ChatBubble
-                  key={msg.id}
-                  message={msg}
-                  isSelf={msg.senderId === user?.id}
-                  onCopy={handleCopy}
-                  onDelete={handleDeleteMessage}
-                  onRetry={handleRetryMessage}
-                />
-              ))}
+              {messages.map((msg, index) => {
+                const prevMsg = index > 0 ? messages[index - 1] : null;
+                const showSep = shouldShowSeparator(msg.createdAt, prevMsg?.createdAt ?? null);
+                const isDivider = msg.id === lastReadMessageId;
+                return (
+                  <React.Fragment key={msg.id}>
+                    {showSep && (
+                      <TimeSeparator label={formatSeparatorLabel(msg.createdAt)} />
+                    )}
+                    {isDivider && (
+                      <div ref={newMessageDividerRef}>
+                        <NewMessageDivider />
+                      </div>
+                    )}
+                    <ChatBubble
+                      message={msg}
+                      isSelf={msg.senderId === user?.id}
+                      onCopy={handleCopy}
+                      onDelete={handleDeleteMessage}
+                      onRetry={handleRetryMessage}
+                    />
+                  </React.Fragment>
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
             <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/5">
