@@ -13,7 +13,7 @@ export async function listRoles(req: AuthRequest, res: Response) {
 
 export async function getRole(req: AuthRequest, res: Response) {
   try {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const role = await aiRoleService.getRole(id, req.userId!);
     res.json({ code: 200, message: '获取成功', data: role });
   } catch (err: any) {
@@ -32,7 +32,7 @@ export async function createRole(req: AuthRequest, res: Response) {
 
 export async function updateRole(req: AuthRequest, res: Response) {
   try {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const role = await aiRoleService.updateRole(id, req.userId!, req.body);
     res.json({ code: 200, message: '更新成功', data: role });
   } catch (err: any) {
@@ -42,7 +42,7 @@ export async function updateRole(req: AuthRequest, res: Response) {
 
 export async function deleteRole(req: AuthRequest, res: Response) {
   try {
-    const id = req.params.id;
+    const id = req.params.id as string;
     await aiRoleService.deleteRole(id, req.userId!);
     res.json({ code: 200, message: '删除成功' });
   } catch (err: any) {
@@ -52,7 +52,7 @@ export async function deleteRole(req: AuthRequest, res: Response) {
 
 export async function chatWithRole(req: AuthRequest, res: Response) {
   try {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const result = await aiRoleService.chatWithRole(id, req.userId!);
     res.json({ code: 200, message: '获取成功', data: result });
   } catch (err: any) {
