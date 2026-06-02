@@ -118,6 +118,7 @@ export async function handleFriendRequest(
         data: {
           type: 'private',
           creatorId: userId,
+          ownerId: userId,
           members: {
             create: [
               { userId: request.fromUserId },

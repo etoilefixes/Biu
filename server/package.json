@@ -7,7 +7,9 @@
     "start": "node dist/app.js",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "create-official": "tsx prisma/create-official-account.ts",
+    "create-ai": "tsx prisma/create-ai-account.ts"
   },
   "dependencies": {
     "@biu/shared": "*",

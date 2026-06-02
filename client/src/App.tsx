@@ -8,7 +8,10 @@ import RegisterPage from './pages/RegisterPage';
 import ChatPage from './pages/ChatPage';
 import ContactsPage from './pages/ContactsPage';
 import ProfilePage from './pages/ProfilePage';
+import AdminPage from './pages/AdminPage';
+import AIChatPage from './pages/AIChatPage';
 import AppLayout from './layouts/AppLayout';
+import AILayout from './layouts/AILayout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -16,7 +19,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { isAuthenticated, loadUser, token } = useAuthStore();
+  const { isAuthenticated, loadUser, token, user } = useAuthStore();
 
   useEffect(() => {
     if (token) {
@@ -27,10 +30,21 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          
+          <Route
+            element={
+              <PrivateRoute>
+                <AILayout />
+              </PrivateRoute>
+            }
+          >
+            <Route path="/ai-chat" element={<AIChatPage />} />
+          </Route>
+          
           <Route
             element={
               <PrivateRoute>
@@ -41,8 +55,13 @@ export default function App() {
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/contacts" element={<ContactsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Route>
-          <Route path="*" element={<Navigate to={isAuthenticated ? '/chat' : '/login'} />} />
+          
+          <Route 
+            path="*" 
+            element={<Navigate to={isAuthenticated ? (user?.username === 'biu_ai' ? '/ai-chat' : '/chat') : '/login'} />} 
+          />
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Message } from '@biu/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -45,6 +45,21 @@ function CardMessage({ cardType, cardData }: { cardType?: string | null; cardDat
     );
   }
 
+  if (cardType === 'broadcast') {
+    return (
+      <div className="rounded-xl bg-gradient-to-br from-biu-primary/15 to-biu-primary/5 border border-biu-primary/30 p-5 min-w-[220px]">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xl">📢</span>
+          <span className="text-biu-primary font-display font-600 text-base">{cardData.title || '官方公告'}</span>
+        </div>
+        <p className="text-gray-200 text-sm font-body leading-relaxed">{cardData.body || ''}</p>
+        <div className="mt-3 pt-3 border-t border-biu-primary/10">
+          <span className="text-biu-primary/60 text-[11px] font-body">Biu 官方</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl bg-white/5 border border-white/10 p-4 min-w-[200px]">
       <p className="text-white text-sm font-display font-600 mb-1">{cardData.title || cardType}</p>
@@ -59,6 +74,45 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
   const status = (message as any)._status;
   const isCard = message.type === 'card';
   const isSystem = message.sender?.isSystem;
+
+  // 解析 @ 提及
+  const renderContent = useMemo(() => {
+    const parts: JSX.Element[] = [];
+    let lastIndex = 0;
+    const regex = /\[at:([^\]]+)\]/g;
+    let match;
+    
+    while ((match = regex.exec(message.content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(<span key={`text-${match.index}`}>{message.content.slice(lastIndex, match.index)}</span>);
+      }
+      
+      const userId = match[1];
+      let displayName = '@用户';
+      
+      if (userId === 'all') {
+        displayName = '@全体成员';
+      }
+      
+      parts.push(
+        <span 
+          key={`mention-${match.index}`} 
+          style={{ color: '#ef4444', fontWeight: 600 }}
+        >
+          [{displayName}]
+        </span>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < message.content.length) {
+      parts.push(<span key="text-end">{message.content.slice(lastIndex)}</span>);
+    }
+    
+    return parts.length > 0 ? parts : message.content;
+  }, [message.content]);
+
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -109,7 +163,11 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
           ) : (
             <div className={`px-3.5 py-2.5 ${isSelf ? 'bubble-self' : 'bubble-other'} ${status === 'failed' ? 'opacity-60' : ''}`}>
               <div className="text-sm break-words font-body leading-relaxed chat-markdown">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                {typeof renderContent === 'string' ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderContent}</ReactMarkdown>
+                ) : (
+                  renderContent
+                )}
               </div>
             </div>
           )}

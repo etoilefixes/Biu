@@ -58,3 +58,78 @@ export async function remove(req: AuthRequest, res: Response) {
     res.status(400).json({ code: 400, message: err.message });
   }
 }
+
+export async function addMember(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const { memberUserId } = req.body;
+    const member = await chatService.addMemberToConversation(req.userId!, id, memberUserId);
+    res.json({ code: 200, message: '添加成功', data: member });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
+
+export async function updateName(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const { name } = req.body;
+    const conversation = await chatService.updateGroupName(req.userId!, id, name);
+    res.json({ code: 200, message: '更新成功', data: conversation });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
+
+export async function updateNickname(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const { nickname } = req.body;
+    const member = await chatService.updateMemberNickname(req.userId!, id, nickname);
+    res.json({ code: 200, message: '更新成功', data: member });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
+
+export async function setAnnouncement(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const { announcement } = req.body;
+    const conversation = await chatService.setAnnouncement(req.userId!, id, announcement);
+    res.json({ code: 200, message: '设置成功', data: conversation });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
+
+export async function removeMember(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const { memberId } = req.body;
+    await chatService.removeMember(req.userId!, id, memberId);
+    res.json({ code: 200, message: '移除成功' });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
+
+export async function leaveGroup(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const result = await chatService.leaveGroup(req.userId!, id);
+    res.json({ code: 200, message: result.deleted ? '群聊已解散' : '已退出群聊', data: result });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
+
+export async function dissolveGroup(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    await chatService.dissolveGroup(req.userId!, id);
+    res.json({ code: 200, message: '群聊已解散' });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}

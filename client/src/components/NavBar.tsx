@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useFriendStore } from '../store/friendStore';
 import { useChatStore } from '../store/chatStore';
 import Toast from './Toast';
-import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX } from './Icons';
+import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, IconCrown, IconRobot } from './Icons';
 import AvatarWithBadge from './AvatarWithBadge';
 import UserBadge from './UserBadge';
 
@@ -108,6 +108,9 @@ export default function NavBar() {
     { path: '/chat', icon: <IconChat size={20} />, label: '消息' },
     { path: '/contacts', icon: <IconContacts size={20} />, label: '联系人' },
   ];
+
+  const isOfficial = user?.role === 'official' || user?.role === 'admin';
+  const isAIUser = user?.username === 'biu_ai' || user?.badges?.some((b) => b.type === 'AI');
   return (
     <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -325,6 +328,32 @@ export default function NavBar() {
             </button>
           );
         })}
+        {isAIUser && (
+          <button
+            onClick={() => navigate('/ai-chat')}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+              location.pathname === '/ai-chat'
+                ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
+                : 'text-gray-500 hover:text-white hover:bg-white/5'
+            }`}
+            title="AI 工作台"
+          >
+            <IconRobot size={20} />
+          </button>
+        )}
+        {isOfficial && (
+          <button
+            onClick={() => navigate('/admin')}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+              location.pathname === '/admin'
+                ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
+                : 'text-gray-500 hover:text-white hover:bg-white/5'
+            }`}
+            title="管理面板"
+          >
+            <IconCrown size={20} />
+          </button>
+        )}
         <div className="flex-1" />
         <button
           ref={settingsBtnRef}

@@ -37,6 +37,7 @@ function formatUser(user: any) {
     avatar: user.avatar,
     status: user.status as 'online' | 'offline' | 'away',
     isSystem: user.isSystem || false,
+    role: user.role || 'user',
     badges,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
@@ -77,6 +78,7 @@ export async function register(data: { username: string; password: string; nickn
     data: {
       type: 'private',
       creatorId: SYSTEM_USER_ID,
+      ownerId: SYSTEM_USER_ID,
       members: {
         create: [
           { userId: SYSTEM_USER_ID },

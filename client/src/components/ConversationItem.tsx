@@ -4,6 +4,16 @@ import { IconDeleteSwipe } from './Icons';
 import UserBadge from './UserBadge';
 import AvatarWithBadge from './AvatarWithBadge';
 
+// 处理消息预览文本，替换 @ 标签
+function formatPreviewText(text: string) {
+  return text.replace(/\[at:([^\]]+)\]/g, (match, userId) => {
+    if (userId === 'all') {
+      return '[@全体成员]';
+    }
+    return '[@用户]';
+  });
+}
+
 interface Props {
   conversation: Conversation;
   active: boolean;
@@ -72,15 +82,25 @@ export default function ConversationItem({
 
   let preview = '暂无消息';
   if (lastMsg) {
+    const formattedContent = formatPreviewText(lastMsg.content);
     if (isSelf) {
       if (conversation.type === 'group') {
-        preview = `你: ${lastMsg.content}`;
+        preview = `你: ${formattedContent}`;
       } else {
-        preview = lastMsg.content;
+        preview = formattedContent;
       }
     } else {
       const senderName = lastMsg.senderNickname || '对方';
-      preview = `${senderName}: ${lastMsg.content}`;
+      preview = `${senderName}: ${formattedContent}`;
+    }
+  }
+
+  // 添加 @ 提示前缀
+  if (conversation.mentionType && unreadCount > 0) {
+    if (conversation.mentionType === 'all') {
+      preview = `[@全体成员] ${preview}`;
+    } else if (conversation.mentionType === 'me') {
+      preview = `[@我] ${preview}`;
     }
   }
 
@@ -242,7 +262,11 @@ export default function ConversationItem({
             <span className="text-white text-sm font-medium font-display truncate">{displayName}</span>
             {isSystemConv && <UserBadge badges={systemBadges} size="sm" />}
           </div>
-          <p className="text-gray-500 text-xs truncate mt-0.5 font-body">{preview}</p>
+          <p className={`text-xs truncate mt-0.5 font-body ${
+            conversation.mentionType && unreadCount > 0 
+              ? 'text-red-400' 
+              : 'text-gray-500'
+          }`}>{preview}</p>
         </div>
       </div>
     </div>

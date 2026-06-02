@@ -23,7 +23,7 @@ interface ChatState {
   unreadMap: UnreadMap;
   totalUnread: number;
   loadConversations: () => Promise<void>;
-  selectConversation: (conversation: Conversation) => Promise<void>;
+  selectConversation: (conversation: Conversation | null) => Promise<void>;
   sendMessage: (content: string, type?: string, senderId?: string) => void;
   addMessage: (message: Message) => void;
   removeMessage: (tempId: string) => void;
@@ -95,6 +95,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectConversation: async (conversation) => {
+    if (!conversation) {
+      set({ currentConversation: null, messages: [] });
+      return;
+    }
+
     const { unreadMap } = get();
     const hasUnread = unreadMap[conversation.id] && unreadMap[conversation.id] > 0;
 

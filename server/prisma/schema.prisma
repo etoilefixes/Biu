@@ -16,11 +16,13 @@ model User {
   avatar       String?  @db.VarChar(500)
   status       String   @default("offline") @db.VarChar(20)
   isSystem     Boolean  @default(false) @map("is_system")
+  role         String   @default("user") @db.VarChar(20)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   conversations ConversationMember[]
   messages      Message[]
+  conversationReads ConversationRead[]
   sentFriendRequests     FriendRequest[] @relation("SentRequests")
   receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
   badges        UserBadge[]
@@ -29,14 +31,18 @@ model User {
 }
 
 model Conversation {
-  id        String   @id @default(uuid())
-  type      String   @db.VarChar(20)
-  name      String?  @db.VarChar(100)
-  creatorId String   @map("creator_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String   @id @default(uuid())
+  biuId       String   @unique @default(uuid()) @map("biu_id") @db.VarChar(20)
+  type        String   @db.VarChar(20)
+  name        String?  @db.VarChar(100)
+  creatorId   String   @map("creator_id")
+  ownerId     String   @map("owner_id")
+  announcement String? @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at")
 
   members  ConversationMember[]
   messages Message[]
+  conversationReads ConversationRead[]
 
   @@map("conversations")
 }
@@ -45,6 +51,7 @@ model ConversationMember {
   id             String   @id @default(uuid())
   conversationId String   @map("conversation_id")
   userId         String   @map("user_id")
+  nickname       String?  @db.VarChar(100)
   joinedAt       DateTime @default(now()) @map("joined_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
@@ -61,12 +68,29 @@ model Message {
   type           String   @default("text") @db.VarChar(20)
   cardType       String?  @map("card_type") @db.VarChar(30)
   cardData       String?  @map("card_data") @db.Text
+  mentions       String?  @map("mentions") @db.Text
+  mentionsAll    Boolean  @default(false) @map("mentions_all")
   createdAt      DateTime @default(now()) @map("created_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
   sender       User         @relation(fields: [senderId], references: [id])
 
   @@map("messages")
+}
+
+model ConversationRead {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  userId         String   @map("user_id")
+  lastReadAt     DateTime @default(now()) @map("last_read_at")
+  mentioned      Boolean  @default(false) @map("mentioned")
+  mentionedAll   Boolean  @default(false) @map("mentioned_all")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+  @@map("conversation_reads")
 }
 
 model Badge {

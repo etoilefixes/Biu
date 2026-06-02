@@ -6,6 +6,7 @@ export interface User {
   avatar: string | null;
   status: 'online' | 'offline' | 'away';
   isSystem?: boolean;
+  role: 'user' | 'admin' | 'official';
   badges?: Badge[];
   createdAt: string;
   updatedAt: string;
@@ -21,19 +22,24 @@ export interface Badge {
 
 export interface Conversation {
   id: string;
+  biuId?: string;
   type: 'private' | 'group';
   name: string | null;
   creatorId: string;
+  ownerId?: string;
+  announcement?: string | null;
   createdAt: string;
   members: ConversationMember[];
   lastMessage?: LastMessage | null;
   unreadCount?: number;
+  mentionType?: 'me' | 'all' | null;
 }
 
 export interface ConversationMember {
   id: string;
   conversationId: string;
   userId: string;
+  nickname?: string | null;
   joinedAt: string;
   user?: User & { isSystem?: boolean };
 }
@@ -44,6 +50,8 @@ export interface LastMessage {
   senderId: string;
   senderNickname?: string;
   createdAt: string;
+  mentions?: string[] | null;
+  mentionsAll?: boolean;
 }
 
 export interface Message {
@@ -54,8 +62,19 @@ export interface Message {
   type: 'text' | 'image' | 'file' | 'card';
   cardType?: string | null;
   cardData?: any;
+  mentions?: string[] | null;
+  mentionsAll?: boolean;
   createdAt: string;
   sender?: User;
+}
+
+export interface ConversationRead {
+  id: string;
+  conversationId: string;
+  userId: string;
+  lastReadAt: string;
+  mentioned: boolean;
+  mentionedAll: boolean;
 }
 
 export interface ChatSendMessage {
