@@ -7,6 +7,7 @@ import Toast from './Toast';
 import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, IconCrown, IconRobot } from './Icons';
 import AvatarWithBadge from './AvatarWithBadge';
 import UserBadge from './UserBadge';
+import AiRoleModal from './AiRoleModal';
 
 function formatBadge(count: number): string {
   if (count <= 0) return '';
@@ -22,6 +23,7 @@ export default function NavBar() {
   const totalUnread = useChatStore((s) => s.totalUnread);
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAiRoleModal, setShowAiRoleModal] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
@@ -355,6 +357,15 @@ export default function NavBar() {
           </button>
         )}
         <div className="flex-1" />
+        {!isAIUser && (
+          <button
+            onClick={() => setShowAiRoleModal(true)}
+            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 text-gray-500 hover:text-white hover:bg-white/5"
+            title="AI 角色"
+          >
+            <IconRobot size={20} />
+          </button>
+        )}
         <button
           ref={settingsBtnRef}
           onClick={() => { setShowSettings(!showSettings); setShowProfile(false); }}
@@ -368,6 +379,9 @@ export default function NavBar() {
           <IconSettings size={20} />
         </button>
       </div>
+      {showAiRoleModal && (
+        <AiRoleModal onClose={() => setShowAiRoleModal(false)} />
+      )}
     </>
   );
 }

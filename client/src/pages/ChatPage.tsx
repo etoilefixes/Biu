@@ -7,12 +7,16 @@ import { socketService } from '../services/socket';
 import api from '../services/api';
 import ConversationItem from '../components/ConversationItem';
 import ChatBubble from '../components/ChatBubble';
+import TimeSeparator from '../components/TimeSeparator';
+import NewMessageDivider from '../components/NewMessageDivider';
 import EmojiPicker from '../components/EmojiPicker';
 import Toast from '../components/Toast';
 import GlassCard from '../components/GlassCard';
 import UserBadge from '../components/UserBadge';
 import AvatarWithBadge from '../components/AvatarWithBadge';
-import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup, IconEmoji, IconPlus, IconMore, IconUsers, IconSettings, IconEdit, IconTrash, IconAnnouncement } from '../components/Icons';
+import { formatSeparatorLabel, shouldShowSeparator } from '../utils/time';
+import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup, IconEmoji, IconPlus, IconMore, IconUsers, IconSettings, IconEdit, IconTrash, IconAnnouncement, IconRobot } from '../components/Icons';
+import AiRoleModal from '../components/AiRoleModal';
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user);
@@ -22,6 +26,7 @@ export default function ChatPage() {
     messages,
     unreadMap,
     totalUnread,
+    lastReadMessageId,
     loadConversations,
     selectConversation,
     sendMessage,
@@ -36,16 +41,17 @@ export default function ChatPage() {
     deleteConversation,
   } = useChatStore();
   const { friends, setFriends } = useFriendStore();
-  const [input, setInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const newMessageDividerRef = useRef<HTMLDivElement>(null);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isDragging = useRef(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showAiRoleModal, setShowAiRoleModal] = useState(false);
   const [addFriendKeyword, setAddFriendKeyword] = useState('');
   const [addMemberKeyword, setAddMemberKeyword] = useState('');
   const [addFriendResults, setAddFriendResults] = useState<any[]>([]);
@@ -59,7 +65,8 @@ export default function ChatPage() {
   // @ 功能
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionSearch, setMentionSearch] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLDivElement>(null);
+  const savedSelectionRange = useRef<Range | null>(null);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const [showMembersList, setShowMembersList] = useState(false);
@@ -67,8 +74,9 @@ export default function ChatPage() {
   const [announcementText, setAnnouncementText] = useState('');
   const [editGroupName, setEditGroupName] = useState('');
   const [editMyNickname, setEditMyNickname] = useState('');
-  const [showConfirmDialog, setShowConfirmDialog] = useState<{ type: 'leave' | 'dissolve' | 'remove'; memberId?: string; title: string; message: string } | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState<{ type: 'leave' | 'dissolve' | 'remove' | 'transfer'; memberId?: string; title: string; message: string } | null>(null);
   const groupSettingsRef = useRef<HTMLDivElement>(null);
+  const [dismissedAnnouncementConvIds, setDismissedAnnouncementConvIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadConversations();
@@ -109,8 +117,13 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (lastReadMessageId && newMessageDividerRef.current) {
+      // Scroll to "new messages" divider on initial load
+      newMessageDividerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, lastReadMessageId]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -142,10 +155,29 @@ export default function ChatPage() {
     document.addEventListener('mouseup', handleMouseUp);
   }, []);
 
+  // 从 contenteditable 提取文本，将 mention chip 转换为协议格式
+  const extractInputContent = (): string => {
+    const el = inputRef.current;
+    if (!el) return '';
+    let text = '';
+    el.childNodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        // 过滤掉零宽空格（\u200B），它只用于光标定位
+        text += (node.textContent || '').replace(/\u200B/g, '');
+      } else if (node instanceof HTMLElement && node.dataset.mentionId) {
+        text += `[at:${node.dataset.mentionId}]`;
+      }
+    });
+    return text;
+  };
+
   const handleSend = () => {
-    if (!input.trim()) return;
-    sendMessage(input.trim(), 'text', user?.id);
-    setInput('');
+    const text = extractInputContent().trim();
+    if (!text) return;
+    sendMessage(text, 'text', user?.id);
+    if (inputRef.current) {
+      inputRef.current.innerHTML = '';
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -165,18 +197,39 @@ export default function ChatPage() {
     }
   };
   
-  // 处理输入框变化，检测 @ 触发
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newInput = e.target.value;
-    setInput(newInput);
-    
-    // 检测 @ 符号
-    const lastAt = newInput.lastIndexOf('@');
+  // 处理输入框变化，检测 @ 触发（contenteditable）
+  const handleInput = () => {
+    const el = inputRef.current;
+    if (!el) return;
+
+    // 提取纯文本用于 @ 检测
+    let plainText = '';
+    el.childNodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        plainText += node.textContent || '';
+      } else if (node instanceof HTMLElement && node.dataset.mentionId) {
+        plainText += `@${node.dataset.mentionDisplay || '用户'} `;
+      }
+    });
+
+    // 获取光标前的文本用于 @ 检测
+    const sel = window.getSelection();
+    let textBeforeCursor = plainText;
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      // 保存当前光标位置，供 mention 插入时使用（点击下拉菜单会导致失焦）
+      savedSelectionRange.current = range.cloneRange();
+      const preRange = document.createRange();
+      preRange.selectNodeContents(el);
+      preRange.setEnd(range.startContainer, range.startOffset);
+      textBeforeCursor = preRange.toString().replace(/\u200B/g, '');
+    }
+
+    const lastAt = textBeforeCursor.lastIndexOf('@');
     if (lastAt !== -1) {
-      const textAfter = newInput.slice(lastAt + 1);
-      // 检查 @ 后面是空格或者行首
-      const beforeAt = lastAt === 0 || newInput[lastAt - 1] === ' ';
-      if (beforeAt && !textAfter.includes(' ')) {
+      const textAfter = textBeforeCursor.slice(lastAt + 1);
+      const beforeAt = lastAt === 0 || textBeforeCursor[lastAt - 1] === ' ';
+      if (beforeAt && !textAfter.includes(' ') && !textAfter.includes('\n')) {
         setShowMentionDropdown(true);
         setMentionSearch(textAfter);
       } else {
@@ -189,20 +242,73 @@ export default function ChatPage() {
     }
   };
   
-  // 选择要 @ 的用户
+  // 选择要 @ 的用户 → 插入 mention chip
   const handleSelectMention = (userId: string, displayName: string) => {
-    const lastAt = input.lastIndexOf('@');
-    if (lastAt === -1) return;
-    
-    const mentionTag = userId === 'all' ? '[at:all]' : `[at:${userId}]`;
-    const newInput = input.slice(0, lastAt) + mentionTag + ' ' + input.slice(lastAt + mentionSearch.length + 1);
-    
-    setInput(newInput);
+    const el = inputRef.current;
+    if (!el) return;
+
+    // 使用保存的光标位置（点击下拉按钮会导致 contenteditable 失焦）
+    const savedRange = savedSelectionRange.current;
+    if (!savedRange) return;
+
+    const range = savedRange.cloneRange();
+
+    // 在光标前文本中查找最后一个 @
+    const preRange = document.createRange();
+    preRange.selectNodeContents(el);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const textBefore = preRange.toString();
+    const atPos = textBefore.lastIndexOf('@');
+
+    if (atPos === -1) return;
+
+    // 设置 range 起点到 @ 位置
+    let charCount = 0;
+    let startNode: Node | null = null;
+    let startOffset = 0;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const len = (node.textContent || '').length;
+      if (charCount + len > atPos) {
+        startNode = node;
+        startOffset = atPos - charCount;
+        break;
+      }
+      charCount += len;
+    }
+    if (!startNode) return;
+
+    range.setStart(startNode, startOffset);
+
+    // 创建 mention chip
+    const chip = document.createElement('span');
+    chip.contentEditable = 'false';
+    chip.dataset.mentionId = userId;
+    chip.dataset.mentionDisplay = displayName;
+    chip.className = 'mention-chip';
+    chip.textContent = `@${displayName}`;
+
+    // 替换 @xxx 为 chip
+    range.deleteContents();
+    range.insertNode(chip);
+
+    // chip 后插入 "空格 + 零宽空格"
+    // 空格提供视觉间距，\u200B 给光标一个可靠的文本节点落点
+    const spacer = document.createTextNode(' \u200B');
+    chip.after(spacer);
+
+    // 先聚焦输入框，再将光标定位到 spacer 末尾
+    el.focus();
+    const newRange = document.createRange();
+    newRange.setStart(spacer, spacer.length);
+    newRange.collapse(true);
+    const newSel = window.getSelection();
+    newSel?.removeAllRanges();
+    newSel?.addRange(newRange);
+
     setShowMentionDropdown(false);
     setMentionSearch('');
-    
-    // 聚焦回输入框
-    setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleCopy = () => setToast({ message: '已复制到剪贴板', type: 'success' });
@@ -224,7 +330,7 @@ export default function ChatPage() {
     if (!conv) return '';
     if (conv.type === 'group') return conv.name;
     const other = conv.members.find((m) => m.userId !== user?.id);
-    if (other?.user?.isSystem) return 'Biu 系统';
+    if (other?.user?.isSystem) return 'Biu团队';
     return other?.user?.nickname || '未知用户';
   };
 
@@ -367,6 +473,40 @@ export default function ChatPage() {
     }
   };
 
+  const handleSetRole = async (memberId: string, role: 'admin' | 'member') => {
+    if (!currentConversation) return;
+    try {
+      await api.put(`/conversations/${currentConversation.id}/role`, { memberId, role });
+      setToast({ message: role === 'admin' ? '已设为管理员' : '已取消管理员', type: 'success' });
+      await loadConversations();
+    } catch (err: any) {
+      setToast({ message: err.response?.data?.message || '设置失败', type: 'error' });
+    }
+  };
+
+  const handleTransferOwner = (memberId: string, nickname: string) => {
+    setShowConfirmDialog({
+      type: 'transfer',
+      memberId,
+      title: '转让群主',
+      message: `确定要将群主转让给「${nickname}」吗？你将变为普通成员。`,
+    });
+  };
+
+  const handleConfirmTransferOwner = async () => {
+    if (!currentConversation || !showConfirmDialog?.memberId) return;
+    try {
+      await api.put(`/conversations/${currentConversation.id}/transfer-owner`, {
+        newOwnerUserId: showConfirmDialog.memberId,
+      });
+      setToast({ message: '群主已转让', type: 'success' });
+      await loadConversations();
+      setShowConfirmDialog(null);
+    } catch (err: any) {
+      setToast({ message: err.response?.data?.message || '转让失败', type: 'error' });
+    }
+  };
+
   const handleLeaveGroup = () => {
     setShowConfirmDialog({
       type: 'leave',
@@ -423,10 +563,16 @@ export default function ChatPage() {
       case 'remove':
         handleConfirmRemoveMember();
         break;
+      case 'transfer':
+        handleConfirmTransferOwner();
+        break;
     }
   };
 
   const isGroupOwner = currentConversation?.ownerId === user?.id;
+  const myMemberRole = currentConversation?.members?.find((m: any) => m.userId === user?.id)?.role || 'member';
+  const isGroupAdmin = myMemberRole === 'admin';
+  const canManage = isGroupOwner || isGroupAdmin;
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
@@ -736,7 +882,7 @@ export default function ChatPage() {
               <div className="p-4 space-y-4">
                 <div>
                   <label className="text-gray-400 text-xs font-medium mb-1.5 block">群名称</label>
-                  {isGroupOwner ? (
+                  {canManage ? (
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -781,7 +927,7 @@ export default function ChatPage() {
                   </div>
                 </div>
 
-                {isGroupOwner && (
+                {canManage && (
                   <div>
                     <label className="text-gray-400 text-xs font-medium mb-1.5 block">群公告</label>
                     <textarea
@@ -803,34 +949,57 @@ export default function ChatPage() {
                 <div className="pt-2 border-t border-white/5">
                   <h3 className="text-gray-400 text-xs font-medium mb-3">群成员 ({currentConversation.members.length})</h3>
                   <div className="space-y-2">
-                    {currentConversation.members.map((member: any) => (
-                      <div key={member.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition">
-                        <div className="flex items-center gap-2">
-                          <AvatarWithBadge
-                            fallback={(member.nickname || member.user?.nickname)[0]}
-                            badges={member.user?.badges}
-                            size="sm"
-                          />
-                          <div>
-                            <p className="text-white text-sm font-display">
-                              {member.nickname || member.user?.nickname}
-                              {member.userId === currentConversation.ownerId && (
-                                <span className="ml-2 text-xs text-biu-primary">群主</span>
-                              )}
-                            </p>
-                            <p className="text-gray-500 text-xs">{member.user?.biuId}</p>
+                    {currentConversation.members.map((member: any) => {
+                      const memberRole = member.role || 'member';
+                      const isMe = member.userId === user?.id;
+                      return (
+                        <div key={member.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition">
+                          <div className="flex items-center gap-2">
+                            <AvatarWithBadge
+                              fallback={(member.nickname || member.user?.nickname)[0]}
+                              badges={member.user?.badges}
+                              size="sm"
+                            />
+                            <div>
+                              <p className="text-white text-sm font-display flex items-center gap-1.5">
+                                {member.nickname || member.user?.nickname}
+                                {memberRole === 'owner' && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-biu-primary/15 text-biu-primary font-body">群主</span>
+                                )}
+                                {memberRole === 'admin' && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-body">管理员</span>
+                                )}
+                              </p>
+                              <p className="text-gray-500 text-xs">{member.user?.biuId}</p>
+                            </div>
                           </div>
+                          {!isMe && (
+                            <div className="flex items-center gap-1">
+                              {isGroupOwner && memberRole !== 'owner' && (
+                                <button
+                                  onClick={() => handleSetRole(member.id, memberRole === 'admin' ? 'member' : 'admin')}
+                                  className={`px-2 py-1 rounded text-xs transition ${
+                                    memberRole === 'admin'
+                                      ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                                      : 'bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20'
+                                  }`}
+                                >
+                                  {memberRole === 'admin' ? '取消管理' : '设为管理'}
+                                </button>
+                              )}
+                              {canManage && (memberRole === 'member' || isGroupOwner) && (
+                                <button
+                                  onClick={() => handleRemoveMember(member.id, member.nickname || member.user?.nickname)}
+                                  className="px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition text-xs"
+                                >
+                                  移除
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        {isGroupOwner && member.userId !== user?.id && (
-                          <button
-                            onClick={() => handleRemoveMember(member.id, member.nickname || member.user?.nickname)}
-                            className="px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition text-xs"
-                          >
-                            移除
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -864,6 +1033,31 @@ export default function ChatPage() {
           to {
             transform: translateX(0);
           }
+        }
+
+        .mention-chip {
+          display: inline-block;
+          background: rgba(239, 68, 68, 0.15);
+          color: #ef4444;
+          font-weight: 600;
+          font-size: 0.875rem;
+          padding: 0 6px;
+          margin-right: 2px;
+          border-radius: 6px;
+          line-height: 1.6;
+          white-space: nowrap;
+          user-select: none;
+          cursor: default;
+        }
+
+        [contenteditable][aria-placeholder]:empty::before {
+          content: attr(aria-placeholder);
+          color: #4b5563;
+          pointer-events: none;
+        }
+
+        [contenteditable]:focus {
+          outline: none;
         }
       ` }} />
 
@@ -912,6 +1106,12 @@ export default function ChatPage() {
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/5 transition font-body"
                   >
                     <IconGroup size={16} className="text-biu-primary" /> 发起群聊
+                  </button>
+                  <button
+                    onClick={() => { setShowAddDropdown(false); setShowAiRoleModal(true); }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/5 transition font-body"
+                  >
+                    <IconRobot size={16} className="text-biu-primary" /> AI 角色
                   </button>
                 </GlassCard>
               </div>
@@ -988,7 +1188,7 @@ export default function ChatPage() {
               )}
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {currentConversation?.type === 'group' && currentConversation?.announcement && !showAnnouncement && (
+              {currentConversation?.type === 'group' && currentConversation?.announcement && !showAnnouncement && !dismissedAnnouncementConvIds.has(currentConversation.id) && (
                 <div 
                   className="mb-4 p-3 rounded-xl bg-biu-primary/10 border border-biu-primary/20 cursor-pointer flex items-start gap-2"
                   onClick={() => setShowAnnouncement(true)}
@@ -1001,7 +1201,7 @@ export default function ChatPage() {
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowAnnouncement(true);
+                      setDismissedAnnouncementConvIds(prev => new Set(prev).add(currentConversation.id));
                     }}
                     className="text-gray-400 hover:text-gray-300 shrink-0"
                   >
@@ -1009,16 +1209,30 @@ export default function ChatPage() {
                   </button>
                 </div>
               )}
-              {messages.map((msg) => (
-                <ChatBubble
-                  key={msg.id}
-                  message={msg}
-                  isSelf={msg.senderId === user?.id}
-                  onCopy={handleCopy}
-                  onDelete={handleDeleteMessage}
-                  onRetry={handleRetryMessage}
-                />
-              ))}
+              {messages.map((msg, index) => {
+                const prevMsg = index > 0 ? messages[index - 1] : null;
+                const showSep = shouldShowSeparator(msg.createdAt, prevMsg?.createdAt ?? null);
+                const isDivider = msg.id === lastReadMessageId;
+                return (
+                  <React.Fragment key={msg.id}>
+                    {showSep && (
+                      <TimeSeparator label={formatSeparatorLabel(msg.createdAt)} />
+                    )}
+                    {isDivider && (
+                      <div ref={newMessageDividerRef}>
+                        <NewMessageDivider />
+                      </div>
+                    )}
+                    <ChatBubble
+                      message={msg}
+                      isSelf={msg.senderId === user?.id}
+                      onCopy={handleCopy}
+                      onDelete={handleDeleteMessage}
+                      onRetry={handleRetryMessage}
+                    />
+                  </React.Fragment>
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
             {isSystemConversation ? (
@@ -1042,8 +1256,21 @@ export default function ChatPage() {
                   {showEmojiPicker && (
                     <EmojiPicker
                       onSelect={(emoji) => {
-                        setInput((prev) => prev + emoji);
+                        const el = inputRef.current;
+                        if (el) {
+                          el.focus();
+                          const sel = window.getSelection();
+                          if (sel && sel.rangeCount > 0) {
+                            const range = sel.getRangeAt(0);
+                            range.deleteContents();
+                            range.insertNode(document.createTextNode(emoji));
+                            range.collapse(false);
+                          } else {
+                            el.appendChild(document.createTextNode(emoji));
+                          }
+                        }
                         setShowEmojiPicker(false);
+                        handleInput();
                       }}
                       onClose={() => setShowEmojiPicker(false)}
                     />
@@ -1051,15 +1278,19 @@ export default function ChatPage() {
                 </div>
               </div>
               <div className="flex gap-3 items-end relative">
-                <input
+                <div
                   ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={handleInputChange}
+                  contentEditable
+                  role="textbox"
+                  aria-placeholder="输入消息... @提及用户"
+                  className="flex-1 min-h-[44px] max-h-[120px] px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body overflow-y-auto"
+                  onInput={handleInput}
                   onKeyDown={handleKeyDown}
                   onFocus={() => setShowEmojiPicker(false)}
-                  placeholder="输入消息... @提及用户"
-                  className="flex-1 px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body"
+                  style={{
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap',
+                  }}
                 />
                 {/* @ 提及下拉菜单 */}
                 <AnimatePresence>
@@ -1128,7 +1359,6 @@ export default function ChatPage() {
                 </AnimatePresence>
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim()}
                   className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 disabled:opacity-30 hover:shadow-glow"
                 >
                   <IconSend size={18} />
@@ -1149,6 +1379,9 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+      {showAiRoleModal && (
+        <AiRoleModal onClose={() => setShowAiRoleModal(false)} />
+      )}
     </>
   );
 }
