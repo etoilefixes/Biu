@@ -14,6 +14,7 @@ import friendRoutes from './modules/friend/friend.routes';
 import badgeRoutes from './modules/badge/badge.routes';
 import officialRoutes from './modules/official/official.routes';
 import aiRoutes from './modules/ai/ai.routes';
+import aiRoleRoutes from './modules/ai-role/ai-role.routes';
 import { setupSocket } from './socket';
 
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api/friends', friendRoutes);
 app.use('/api/badges', badgeRoutes);
 app.use('/api/official', officialRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/ai-roles', aiRoleRoutes);
 
 app.use(errorHandler);
 

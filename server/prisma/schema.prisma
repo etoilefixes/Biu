@@ -26,13 +26,14 @@ model User {
   sentFriendRequests     FriendRequest[] @relation("SentRequests")
   receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
   badges        UserBadge[]
+  aiRoles       AiRole[]
 
   @@map("users")
 }
 
 model Conversation {
   id          String   @id @default(uuid())
-  biuId       String   @unique @default(uuid()) @map("biu_id") @db.VarChar(20)
+  biuId       String   @unique @map("biu_id") @db.VarChar(20)
   type        String   @db.VarChar(20)
   name        String?  @db.VarChar(100)
   creatorId   String   @map("creator_id")
@@ -52,6 +53,7 @@ model ConversationMember {
   conversationId String   @map("conversation_id")
   userId         String   @map("user_id")
   nickname       String?  @db.VarChar(100)
+  role           String   @default("member") @db.VarChar(20)
   joinedAt       DateTime @default(now()) @map("joined_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
@@ -132,4 +134,25 @@ model FriendRequest {
   toUser   User @relation("ReceivedRequests", fields: [toUserId], references: [id])
 
   @@map("friend_requests")
+}
+
+model AiRole {
+  id              String   @id @default(uuid())
+  name            String   @db.VarChar(50)
+  avatar          String?  @db.VarChar(500)
+  description     String?  @db.VarChar(500)
+  personality     String?  @db.Text
+  speakingStyle   String?  @db.Text
+  forbiddenTopics String?  @db.Text
+  greeting        String?  @db.VarChar(500)
+  replyLength     String   @default("medium") @db.VarChar(20)
+  temperature     Float    @default(0.7)
+  userId          String   @map("user_id")
+  isPublic        Boolean  @default(true) @map("is_public")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  creator User @relation(fields: [userId], references: [id])
+
+  @@map("ai_roles")
 }

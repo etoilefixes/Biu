@@ -2,6 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { prisma } from '../config/database';
 import { redis } from '../config/redis';
 import * as messageService from '../modules/message/message.service';
+import { generateAiReply } from '../modules/ai-role/ai-llm.service';
 
 export function registerChatHandlers(io: Server, socket: Socket) {
   socket.on('chat:send', async (data) => {
@@ -38,6 +39,11 @@ export function registerChatHandlers(io: Server, socket: Socket) {
           }
         }
       }
+
+      // 异步触发 AI 角色回复（不阻塞消息发送）
+      generateAiReply(data.conversationId, socket.data.userId).catch((err) => {
+        console.error('[AI Reply] Error:', err);
+      });
     } catch (err: any) {
       socket.emit('chat:error', { message: err.message, conversationId: data.conversationId });
     }
@@ -59,8 +65,20 @@ export function registerChatHandlers(io: Server, socket: Socket) {
   });
 
   socket.on('chat:mark-read', async (data: { conversationId: string }) => {
-    const unreadKey = `unread:${socket.data.userId}:${data.conversationId}`;
+    const userId = socket.data.userId;
+    const unreadKey = `unread:${userId}:${data.conversationId}`;
     await redis.set(unreadKey, '0');
+
+    // Also update read position to latest message (matches HTTP markAsRead)
+    const lastMessage = await prisma.message.findFirst({
+      where: { conversationId: data.conversationId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    if (lastMessage) {
+      const readKey = `read:${userId}:${data.conversationId}`;
+      await redis.set(readKey, lastMessage.createdAt.toISOString());
+    }
   });
 
   socket.on('friend:request', async (data) => {
