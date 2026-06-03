@@ -1,5 +1,6 @@
 import { prisma } from '../../config/database';
 import { generateConversationBiuId } from '../../utils/biuId';
+import * as badgeService from '../badge/badge.service';
 
 export async function listRoles(userId: string) {
   const roles = await prisma.aiRole.findMany({
@@ -242,6 +243,12 @@ async function ensureAiRoleUser(role: { id: string; name: string; avatar: string
         data: { nickname: role.name, avatar: role.avatar, isSystem: false },
       });
     }
+    // 确保 AI 徽章存在
+    try {
+      await badgeService.assignBadge(user.id, 'AI');
+    } catch {
+      // 徽章已存在，忽略
+    }
     return user.id;
   }
 
@@ -259,6 +266,13 @@ async function ensureAiRoleUser(role: { id: string; name: string; avatar: string
       role: 'user',
     },
   });
+
+  // 自动分配 AI 身份徽章
+  try {
+    await badgeService.assignBadge(user.id, 'AI');
+  } catch {
+    // 徽章已存在或徽章类型未初始化，忽略
+  }
 
   return user.id;
 }
@@ -293,6 +307,82 @@ function formatRole(role: any) {
     createdAt: role.createdAt.toISOString(),
     updatedAt: role.updatedAt.toISOString(),
   };
+}
+
+/**
+ * 清除 AI 会话中的所有消息（删除数据库记录）
+ * 支持 AI 角色会话、系统用户会话和其他 AI 工作台内的会话
+ */
+export async function clearConversationMessages(conversationId: string, userId: string) {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      members: { select: { userId: true } },
+    },
+  });
+
+  if (!conversation) throw new Error('会话不存在');
+
+  const isMember = conversation.members.some((m) => m.userId === userId);
+  if (!isMember) throw new Error('无权操作此会话');
+
+  // 删除该会话的所有消息
+  const result = await prisma.message.deleteMany({
+    where: { conversationId },
+  });
+
+  // 清除 Redis 中的未读计数
+  const { redis } = await import('../../config/redis');
+  for (const member of conversation.members) {
+    const unreadKey = `unread:${member.userId}:${conversationId}`;
+    await redis.del(unreadKey);
+  }
+
+  return { deletedCount: result.count };
+}
+
+/**
+ * 删除 AI 最后一条回复，并重新生成
+ */
+export async function regenerateLastReply(conversationId: string, userId: string) {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      members: { select: { userId: true } },
+    },
+  });
+
+  if (!conversation) throw new Error('会话不存在');
+  if (!conversation.name?.startsWith('__ai_role__')) throw new Error('非 AI 角色会话');
+
+  const isMember = conversation.members.some((m) => m.userId === userId);
+  if (!isMember) throw new Error('无权操作此会话');
+
+  const roleId = conversation.name.replace('__ai_role__', '');
+  const role = await prisma.aiRole.findUnique({ where: { id: roleId } });
+  if (!role) throw new Error('AI 角色不存在');
+
+  const aiUsername = `ai_role_${roleId.replace(/-/g, '_')}`;
+  const aiUser = await prisma.user.findUnique({ where: { username: aiUsername } });
+  if (!aiUser) throw new Error('AI 用户不存在');
+
+  // 找到 AI 的最后一条消息并删除
+  const lastAiMessage = await prisma.message.findFirst({
+    where: { conversationId, senderId: aiUser.id },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (lastAiMessage) {
+    await prisma.message.delete({ where: { id: lastAiMessage.id } });
+  }
+
+  // 触发重新生成
+  const { generateAiReply } = await import('./ai-llm.service');
+  generateAiReply(conversationId, userId).catch((err) => {
+    console.error('[AI Regenerate] Failed:', err);
+  });
+
+  return { success: true };
 }
 
 function formatConversation(conversation: any, currentUserId: string) {
