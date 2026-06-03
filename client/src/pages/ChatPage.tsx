@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
@@ -15,8 +15,40 @@ import GlassCard from '../components/GlassCard';
 import UserBadge from '../components/UserBadge';
 import AvatarWithBadge from '../components/AvatarWithBadge';
 import { formatSeparatorLabel, shouldShowSeparator } from '../utils/time';
-import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup, IconEmoji, IconPlus, IconMore, IconUsers, IconSettings, IconEdit, IconTrash, IconAnnouncement, IconRobot } from '../components/Icons';
+import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup, IconEmoji, IconPlus, IconMore, IconUsers, IconSettings, IconEdit, IconTrash, IconAnnouncement, IconRobot, IconRefresh, IconHelpCircle, IconEraser } from '../components/Icons';
 import AiRoleModal from '../components/AiRoleModal';
+
+interface SlashCommand {
+  command: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+const SLASH_COMMANDS: SlashCommand[] = [
+  {
+    command: '/clear',
+    label: '清除上下文',
+    description: '清除当前会话的所有历史消息，让 AI 重新开始对话',
+    icon: <IconEraser size={16} />,
+    color: 'text-orange-400',
+  },
+  {
+    command: '/regenerate',
+    label: '重新生成',
+    description: '删除 AI 的最后一条回复并重新生成',
+    icon: <IconRefresh size={16} />,
+    color: 'text-blue-400',
+  },
+  {
+    command: '/help',
+    label: '帮助',
+    description: '查看所有可用的斜杠命令',
+    icon: <IconHelpCircle size={16} />,
+    color: 'text-green-400',
+  },
+];
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user);
@@ -77,6 +109,30 @@ export default function ChatPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState<{ type: 'leave' | 'dissolve' | 'remove' | 'transfer'; memberId?: string; title: string; message: string } | null>(null);
   const groupSettingsRef = useRef<HTMLDivElement>(null);
   const [dismissedAnnouncementConvIds, setDismissedAnnouncementConvIds] = useState<Set<string>>(new Set());
+
+  // 斜杠命令
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [commandFilter, setCommandFilter] = useState('');
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const filteredCommands = useMemo(() => {
+    if (!commandFilter) return SLASH_COMMANDS;
+    const filter = commandFilter.toLowerCase();
+    return SLASH_COMMANDS.filter(
+      (cmd) =>
+        cmd.command.toLowerCase().includes(filter) ||
+        cmd.label.toLowerCase().includes(filter)
+    );
+  }, [commandFilter]);
+
+  useEffect(() => {
+    if (selectedCommandIndex >= filteredCommands.length) {
+      setSelectedCommandIndex(0);
+    }
+  }, [filteredCommands.length, selectedCommandIndex]);
 
   useEffect(() => {
     loadConversations();
@@ -193,13 +249,129 @@ export default function ChatPage() {
   const handleSend = () => {
     const text = extractInputContent().trim();
     if (!text) return;
+
+    // 斜杠命令拦截
+    if (text.startsWith('/')) {
+      if (text === '/') {
+        setShowCommandPalette(false);
+        if (inputRef.current) inputRef.current.innerHTML = '';
+        setShowHelpModal(true);
+        return;
+      }
+      const matchedCmd = filteredCommands.find((cmd) => cmd.command === text);
+      if (matchedCmd) {
+        executeCommand(matchedCmd);
+        if (inputRef.current) inputRef.current.innerHTML = '';
+        return;
+      }
+      setToast({ message: '未知命令，输入 / 查看可用命令', type: 'error' });
+      return;
+    }
+
     sendMessage(text, 'text', user?.id);
     if (inputRef.current) {
       inputRef.current.innerHTML = '';
     }
   };
 
+  const executeCommand = async (cmd: SlashCommand) => {
+    setShowCommandPalette(false);
+    if (inputRef.current) inputRef.current.innerHTML = '';
+
+    switch (cmd.command) {
+      case '/clear':
+        setShowClearConfirm(true);
+        break;
+      case '/help':
+        setShowHelpModal(true);
+        break;
+      case '/regenerate':
+        await handleRegenerate();
+        break;
+    }
+  };
+
+  const handleClearContext = async () => {
+    if (!currentConversation) return;
+    setClearing(true);
+    try {
+      await api.delete(`/ai-roles/conversations/${currentConversation.id}/messages`);
+      await selectConversation(currentConversation);
+      setToast({ message: '上下文已清除', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || '清除失败', type: 'error' });
+    } finally {
+      setClearing(false);
+      setShowClearConfirm(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!currentConversation) return;
+
+    if (!currentConversation.name?.startsWith('__ai_role__')) {
+      setToast({ message: '重新生成仅支持 AI 角色会话', type: 'error' });
+      return;
+    }
+
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg || lastMsg.senderId === user?.id) {
+      setToast({ message: '没有可重新生成的 AI 回复', type: 'error' });
+      return;
+    }
+
+    try {
+      removeMessage(lastMsg.id);
+      await api.post(`/ai-roles/conversations/${currentConversation.id}/regenerate`);
+      setToast({ message: '正在重新生成...', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || '重新生成失败', type: 'error' });
+      await selectConversation(currentConversation);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 命令面板键盘操作
+    if (showCommandPalette) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => Math.min(prev + 1, filteredCommands.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const selected = filteredCommands[selectedCommandIndex];
+        if (selected) {
+          // 替换输入框中的 /xxx 为完整命令
+          replaceSlashCommandInput(selected.command);
+        }
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const selected = filteredCommands[selectedCommandIndex];
+        if (selected) {
+          const text = extractInputContent().trim();
+          if (text === selected.command) {
+            executeCommand(selected);
+          } else {
+            replaceSlashCommandInput(selected.command);
+          }
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCommandPalette(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey && !showMentionDropdown) {
       e.preventDefault();
       handleSend();
@@ -215,13 +387,53 @@ export default function ChatPage() {
       }
     }
   };
+
+  // 替换输入框中的斜杠命令文本
+  const replaceSlashCommandInput = (command: string) => {
+    const el = inputRef.current;
+    if (!el) return;
+
+    // 找到以 / 开头的文本节点并替换
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let slashNode: Text | null = null;
+    let slashNodeOffset = 0;
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      const text = node.textContent || '';
+      const slashIndex = text.lastIndexOf('/');
+      if (slashIndex !== -1) {
+        slashNode = node;
+        slashNodeOffset = slashIndex;
+        break;
+      }
+    }
+
+    if (slashNode) {
+      const before = (slashNode.textContent || '').substring(0, slashNodeOffset);
+      slashNode.textContent = before + command + ' \u200B';
+
+      el.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.setStart(slashNode, slashNode.textContent.length);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+
+    setCommandFilter(command);
+    setShowCommandPalette(false);
+  };
   
   // 处理输入框变化，检测 @ 触发（contenteditable）
   const handleInput = () => {
     const el = inputRef.current;
     if (!el) return;
 
-    // 提取纯文本用于 @ 检测
+    // 提取纯文本用于 @ 和 / 检测
     let plainText = '';
     el.childNodes.forEach((node) => {
       if (node.nodeType === Node.TEXT_NODE) {
@@ -231,7 +443,7 @@ export default function ChatPage() {
       }
     });
 
-    // 获取光标前的文本用于 @ 检测
+    // 获取光标前的文本用于 @ 和 / 检测
     const sel = window.getSelection();
     let textBeforeCursor = plainText;
     if (sel && sel.rangeCount > 0) {
@@ -244,6 +456,25 @@ export default function ChatPage() {
       textBeforeCursor = preRange.toString().replace(/\u200B/g, '');
     }
 
+    // 检测斜杠命令
+    const lastSlash = textBeforeCursor.lastIndexOf('/');
+    if (lastSlash !== -1) {
+      const textAfterSlash = textBeforeCursor.slice(lastSlash + 1);
+      const beforeSlash = lastSlash === 0 || textBeforeCursor[lastSlash - 1] === ' ' || textBeforeCursor[lastSlash - 1] === '\n';
+      if (beforeSlash && !textAfterSlash.includes(' ') && !textAfterSlash.includes('\n')) {
+        setShowCommandPalette(true);
+        setCommandFilter('/' + textAfterSlash);
+        setSelectedCommandIndex(0);
+      } else {
+        setShowCommandPalette(false);
+        setCommandFilter('');
+      }
+    } else {
+      setShowCommandPalette(false);
+      setCommandFilter('');
+    }
+
+    // 检测 @ 提及
     const lastAt = textBeforeCursor.lastIndexOf('@');
     if (lastAt !== -1) {
       const textAfter = textBeforeCursor.slice(lastAt + 1);
@@ -1301,7 +1532,7 @@ export default function ChatPage() {
                   ref={inputRef}
                   contentEditable
                   role="textbox"
-                  aria-placeholder="输入消息... @提及用户"
+                  aria-placeholder="输入消息... /命令 @提及用户"
                   className="flex-1 min-h-[44px] max-h-[120px] px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body overflow-y-auto"
                   onInput={handleInput}
                   onKeyDown={handleKeyDown}
@@ -1311,6 +1542,46 @@ export default function ChatPage() {
                     whiteSpace: 'pre-wrap',
                   }}
                 />
+                {/* 斜杠命令面板 */}
+                <AnimatePresence>
+                  {showCommandPalette && filteredCommands.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute bottom-full left-0 mb-2 w-72 glass-strong rounded-xl border border-white/10 shadow-xl overflow-hidden z-10"
+                    >
+                      <div className="px-3 py-2 border-b border-white/5">
+                        <span className="text-gray-500 text-xs font-body">命令</span>
+                      </div>
+                      {filteredCommands.map((cmd, index) => (
+                        <button
+                          key={cmd.command}
+                          onClick={() => executeCommand(cmd)}
+                          className={`w-full px-3 py-2.5 flex items-center gap-3 text-left transition-all duration-150 ${
+                            index === selectedCommandIndex
+                              ? 'bg-biu-primary/15'
+                              : 'hover:bg-white/5'
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center ${cmd.color}`}>
+                            {cmd.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white text-sm font-mono font-600">{cmd.command}</span>
+                              <span className="text-gray-400 text-xs font-body">{cmd.label}</span>
+                            </div>
+                            <p className="text-gray-600 text-[11px] font-body truncate">{cmd.description}</p>
+                          </div>
+                          {index === selectedCommandIndex && (
+                            <span className="text-gray-600 text-[10px] font-body shrink-0">↵ 执行</span>
+                          )}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 {/* @ 提及下拉菜单 */}
                 <AnimatePresence>
                   {showMentionDropdown && currentConversation && (
@@ -1398,6 +1669,75 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+      {showHelpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+          <GlassCard className="w-[420px] p-6 animate-scale-in">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <IconHelpCircle size={20} className="text-biu-primary" />
+                <h3 className="text-white font-display font-600 text-sm">可用命令</h3>
+              </div>
+              <button onClick={() => setShowHelpModal(false)} className="text-gray-500 hover:text-white transition">
+                <IconX size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              {SLASH_COMMANDS.map((cmd) => (
+                <div key={cmd.command} className="glass rounded-xl p-3 flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center ${cmd.color}`}>
+                    {cmd.icon}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <code className="text-biu-primary text-sm font-mono font-600">{cmd.command}</code>
+                      <span className="text-gray-500 text-xs font-body">{cmd.label}</span>
+                    </div>
+                    <p className="text-gray-500 text-xs font-body mt-0.5">{cmd.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-gray-600 text-xs font-body mt-4 text-center">
+              在输入框中输入 <code className="text-biu-primary">/</code> 开始使用命令
+            </p>
+          </GlassCard>
+        </div>
+      )}
+
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+          <GlassCard className="w-[360px] p-6 animate-scale-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center">
+                <IconEraser size={18} className="text-orange-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-display font-600 text-sm">清除上下文</h3>
+                <p className="text-gray-500 text-xs font-body">此操作不可撤销</p>
+              </div>
+            </div>
+            <p className="text-gray-400 text-sm font-body mb-5">
+              将删除当前会话的所有历史消息，AI 将失去之前的对话记忆并重新开始。
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="px-4 py-2 rounded-lg bg-white/5 text-gray-400 text-sm font-body hover:bg-white/10 transition"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleClearContext}
+                disabled={clearing}
+                className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-body font-500 hover:bg-orange-600 transition disabled:opacity-50"
+              >
+                {clearing ? '清除中...' : '确认清除'}
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
       {showAiRoleModal && (
         <AiRoleModal onClose={() => setShowAiRoleModal(false)} />
       )}
