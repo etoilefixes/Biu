@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { socketService } from '../services/socket';
@@ -7,8 +7,40 @@ import ChatBubble from '../components/ChatBubble';
 import TimeSeparator from '../components/TimeSeparator';
 import NewMessageDivider from '../components/NewMessageDivider';
 import Toast from '../components/Toast';
-import { IconChat, IconSend } from '../components/Icons';
+import { IconChat, IconSend, IconRefresh, IconHelpCircle, IconEraser, IconX } from '../components/Icons';
 import { formatSeparatorLabel, shouldShowSeparator } from '../utils/time';
+
+interface SlashCommand {
+  command: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+const SLASH_COMMANDS: SlashCommand[] = [
+  {
+    command: '/clear',
+    label: '清除上下文',
+    description: '清除当前会话的所有历史消息，让 AI 重新开始对话',
+    icon: <IconEraser size={16} />,
+    color: 'text-orange-400',
+  },
+  {
+    command: '/regenerate',
+    label: '重新生成',
+    description: '删除 AI 的最后一条回复并重新生成',
+    icon: <IconRefresh size={16} />,
+    color: 'text-blue-400',
+  },
+  {
+    command: '/help',
+    label: '帮助',
+    description: '查看所有可用的斜杠命令',
+    icon: <IconHelpCircle size={16} />,
+    color: 'text-green-400',
+  },
+];
 
 export default function AIChatPage() {
   const user = useAuthStore((s) => s.user);
@@ -26,8 +58,33 @@ export default function AIChatPage() {
   } = useChatStore();
   const [input, setInput] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [commandFilter, setCommandFilter] = useState('');
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const newMessageDividerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 过滤命令列表
+  const filteredCommands = useMemo(() => {
+    if (!commandFilter) return SLASH_COMMANDS;
+    const filter = commandFilter.toLowerCase();
+    return SLASH_COMMANDS.filter(
+      (cmd) =>
+        cmd.command.toLowerCase().includes(filter) ||
+        cmd.label.toLowerCase().includes(filter)
+    );
+  }, [commandFilter]);
+
+  // 当选中的命令超出范围时重置
+  useEffect(() => {
+    if (selectedCommandIndex >= filteredCommands.length) {
+      setSelectedCommandIndex(0);
+    }
+  }, [filteredCommands.length, selectedCommandIndex]);
 
   useEffect(() => {
     loadConversations();
@@ -59,13 +116,151 @@ export default function AIChatPage() {
     }
   }, [messages, lastReadMessageId]);
 
+  // 检测斜杠命令
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInput(value);
+
+    if (value.startsWith('/') && !value.includes(' ')) {
+      setShowCommandPalette(true);
+      setCommandFilter(value);
+      setSelectedCommandIndex(0);
+    } else {
+      setShowCommandPalette(false);
+      setCommandFilter('');
+    }
+  };
+
+  // 执行命令
+  const executeCommand = async (cmd: SlashCommand) => {
+    setShowCommandPalette(false);
+    setInput('');
+
+    switch (cmd.command) {
+      case '/clear':
+        setShowClearConfirm(true);
+        break;
+      case '/help':
+        setShowHelpModal(true);
+        break;
+      case '/regenerate':
+        await handleRegenerate();
+        break;
+    }
+  };
+
+  // 清除上下文
+  const handleClearContext = async () => {
+    if (!currentConversation) return;
+    setClearing(true);
+    try {
+      await api.delete(`/ai-roles/conversations/${currentConversation.id}/messages`);
+      await loadConversations();
+      await selectConversation(currentConversation);
+      setToast({ message: '上下文已清除', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || '清除失败', type: 'error' });
+    } finally {
+      setClearing(false);
+      setShowClearConfirm(false);
+    }
+  };
+
+  // 重新生成（仅 AI 角色会话支持）
+  const handleRegenerate = async () => {
+    if (!currentConversation) return;
+
+    // 仅 AI 角色会话支持重新生成
+    if (!currentConversation.name?.startsWith('__ai_role__')) {
+      setToast({ message: '重新生成仅支持 AI 角色会话', type: 'error' });
+      return;
+    }
+
+    // 检查是否有 AI 回复
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg || lastMsg.senderId === user?.id) {
+      setToast({ message: '没有可重新生成的 AI 回复', type: 'error' });
+      return;
+    }
+
+    try {
+      // 先移除前端中的最后一条 AI 消息（乐观更新）
+      removeMessage(lastMsg.id);
+      await api.post(`/ai-roles/conversations/${currentConversation.id}/regenerate`);
+      setToast({ message: '正在重新生成...', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message || '重新生成失败', type: 'error' });
+      // 失败时重新加载消息
+      await selectConversation(currentConversation);
+    }
+  };
+
   const handleSend = () => {
     if (!input.trim() || !currentConversation) return;
+    // 如果是斜杠命令，不发送
+    if (input.startsWith('/')) {
+      // 只输入 / 时显示帮助
+      if (input === '/') {
+        setShowCommandPalette(false);
+        setInput('');
+        setShowHelpModal(true);
+        return;
+      }
+      const matchedCmd = filteredCommands.find((cmd) => cmd.command === input);
+      if (matchedCmd) {
+        executeCommand(matchedCmd);
+        return;
+      }
+      // 未匹配的斜杠命令，不发送
+      setToast({ message: '未知命令，输入 / 查看可用命令', type: 'error' });
+      return;
+    }
     sendMessage(input.trim(), 'text', user?.id);
     setInput('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showCommandPalette) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => Math.min(prev + 1, filteredCommands.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const selected = filteredCommands[selectedCommandIndex];
+        if (selected) {
+          setInput(selected.command);
+          setCommandFilter(selected.command);
+        }
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const selected = filteredCommands[selectedCommandIndex];
+        if (selected && input === selected.command) {
+          executeCommand(selected);
+        } else {
+          // 输入不完整，补全到选中的命令
+          if (selected) {
+            setInput(selected.command);
+            setCommandFilter(selected.command);
+          }
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCommandPalette(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -121,6 +316,79 @@ export default function AIChatPage() {
       <div className="flex-1 flex flex-col min-w-0">
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+        {/* 帮助弹窗 */}
+        {showHelpModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowHelpModal(false)} />
+            <div className="relative w-[420px] glass-strong rounded-2xl shadow-2xl p-6 animate-scale-in">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <IconHelpCircle size={20} className="text-biu-primary" />
+                  <h3 className="text-white font-display font-600 text-sm">可用命令</h3>
+                </div>
+                <button onClick={() => setShowHelpModal(false)} className="text-gray-500 hover:text-white transition">
+                  <IconX size={16} />
+                </button>
+              </div>
+              <div className="space-y-3">
+                {SLASH_COMMANDS.map((cmd) => (
+                  <div key={cmd.command} className="glass rounded-xl p-3 flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center ${cmd.color}`}>
+                      {cmd.icon}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <code className="text-biu-primary text-sm font-mono font-600">{cmd.command}</code>
+                        <span className="text-gray-500 text-xs font-body">{cmd.label}</span>
+                      </div>
+                      <p className="text-gray-500 text-xs font-body mt-0.5">{cmd.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-gray-600 text-xs font-body mt-4 text-center">
+                在输入框中输入 <code className="text-biu-primary">/</code> 开始使用命令
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 清除确认弹窗 */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowClearConfirm(false)} />
+            <div className="relative w-[360px] glass-strong rounded-2xl shadow-2xl p-6 animate-scale-in">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center">
+                  <IconEraser size={18} className="text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-display font-600 text-sm">清除上下文</h3>
+                  <p className="text-gray-500 text-xs font-body">此操作不可撤销</p>
+                </div>
+              </div>
+              <p className="text-gray-400 text-sm font-body mb-5">
+                将删除当前会话的所有历史消息，AI 将失去之前的对话记忆并重新开始。
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-4 py-2 rounded-lg bg-white/5 text-gray-400 text-sm font-body hover:bg-white/10 transition"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleClearContext}
+                  disabled={clearing}
+                  className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-body font-500 hover:bg-orange-600 transition disabled:opacity-50"
+                >
+                  {clearing ? '清除中...' : '确认清除'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {currentConversation ? (
           <>
             <div className="h-14 glass-strong flex items-center px-6 border-b border-white/5">
@@ -153,14 +421,50 @@ export default function AIChatPage() {
               })}
               <div ref={messagesEndRef} />
             </div>
-            <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/5">
+            <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/5 relative">
+              {/* 命令面板 */}
+              {showCommandPalette && filteredCommands.length > 0 && (
+                <div className="absolute bottom-full left-4 right-4 mb-2">
+                  <div className="glass-strong rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-white/5">
+                      <span className="text-gray-500 text-xs font-body">命令</span>
+                    </div>
+                    {filteredCommands.map((cmd, index) => (
+                      <button
+                        key={cmd.command}
+                        onClick={() => executeCommand(cmd)}
+                        className={`w-full px-3 py-2.5 flex items-center gap-3 text-left transition-all duration-150 ${
+                          index === selectedCommandIndex
+                            ? 'bg-biu-primary/15'
+                            : 'hover:bg-white/5'
+                        }`}
+                      >
+                        <div className={`w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center ${cmd.color}`}>
+                          {cmd.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white text-sm font-mono font-600">{cmd.command}</span>
+                            <span className="text-gray-400 text-xs font-body">{cmd.label}</span>
+                          </div>
+                          <p className="text-gray-600 text-[11px] font-body truncate">{cmd.description}</p>
+                        </div>
+                        {index === selectedCommandIndex && (
+                          <span className="text-gray-600 text-[10px] font-body shrink-0">↵ 执行</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-3 items-end">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="输入消息..."
+                  placeholder="输入消息或 / 使用命令..."
                   className="flex-1 px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body"
                   autoFocus
                 />

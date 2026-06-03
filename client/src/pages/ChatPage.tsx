@@ -296,6 +296,7 @@ export default function ChatPage() {
     setClearing(true);
     try {
       await api.delete(`/ai-roles/conversations/${currentConversation.id}/messages`);
+      await loadConversations();
       await selectConversation(currentConversation);
       setToast({ message: '上下文已清除', type: 'success' });
     } catch (err: any) {
