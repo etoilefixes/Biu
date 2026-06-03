@@ -104,7 +104,22 @@ export default function ChatPage() {
       }
       setToast({ message: data.message || '消息发送失败', type: 'error' });
     });
-    socketService.onChatAck((_data) => {
+    socketService.onChatAck((data) => {
+      // ack 到达说明服务器已收到消息，将 sending 状态改为 sent
+      // 这样超时定时器不会再触发重试
+      const { messages } = useChatStore.getState();
+      const sendingMsg = messages.find(
+        (m) =>
+          (m as any)._status === 'sending' &&
+          m.conversationId === data.conversationId
+      );
+      if (sendingMsg) {
+        useChatStore.setState((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === sendingMsg.id ? { ...m, _status: 'sent' } : m
+          ),
+        }));
+      }
     });
     socketService.onChatStream((data) => {
       useChatStore.getState().handleStreamEvent(data);

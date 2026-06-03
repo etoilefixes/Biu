@@ -4,8 +4,11 @@ import { ChatReceiveMessage } from '@biu/shared';
 class SocketService {
   private socket: Socket | null = null;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private token: string | null = null;
 
   connect(token: string) {
+    this.token = token;
+
     if (this.socket?.connected) {
       return;
     }
@@ -15,6 +18,10 @@ class SocketService {
     this.socket = io('http://localhost:3001', {
       auth: { token },
       transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     this.socket.on('connect', () => {
@@ -121,7 +128,19 @@ class SocketService {
   }
 
   sendMessage(data: { conversationId: string; content: string; type: string }) {
-    this.socket?.emit('chat:send', data);
+    if (!this.socket?.connected) {
+      console.warn('[Socket] sendMessage called but socket not connected, attempting reconnect');
+      if (this.token) {
+        this.connect(this.token);
+      }
+      return false;
+    }
+    this.socket.emit('chat:send', data);
+    return true;
+  }
+
+  isConnected(): boolean {
+    return this.socket?.connected ?? false;
   }
 
   sendTyping(conversationId: string) {

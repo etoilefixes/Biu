@@ -180,6 +180,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     get().updateConversationLastMessage(currentConversation.id, optimisticMessage);
 
+    // 检查 socket 连接状态
+    if (!socketService.isConnected()) {
+      // socket 未连接，直接标记为失败
+      console.warn('[ChatStore] Socket not connected, marking message as failed');
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.id === tempId ? { ...m, _status: 'failed' } : m
+        ),
+      }));
+      return;
+    }
+
+    const sent = socketService.sendMessage({
+      conversationId: currentConversation.id,
+      content,
+      type,
+    });
+
+    if (!sent) {
+      // 发送失败，标记消息
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.id === tempId ? { ...m, _status: 'failed' } : m
+        ),
+      }));
+      return;
+    }
+
     const ackTimer = setTimeout(() => {
       const { messages } = get();
       const stillSending = messages.find((m) => m.id === tempId && (m as any)._status === 'sending');
@@ -218,12 +246,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       timer: ackTimer,
       retryCount: 0,
     });
-
-    socketService.sendMessage({
-      conversationId: currentConversation.id,
-      content,
-      type,
-    });
   },
 
   addMessage: (message) => {
@@ -247,7 +269,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } else {
       const optimisticIndex = messages.findIndex(
         (m) =>
-          (m as any)._status === 'sending' &&
+          ((m as any)._status === 'sending' || (m as any)._status === 'sent') &&
           m.conversationId === message.conversationId &&
           m.content === message.content &&
           ((m as any)._tempSender === message.senderId ||
@@ -523,7 +545,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let changed = false;
 
     const updated = messages.map((m) => {
-      if ((m as any)._status !== 'sending') return m;
+      const status = (m as any)._status;
+      if (status !== 'sending' && status !== 'sent') return m;
 
       const msgTime = new Date(m.createdAt).getTime();
       if (now - msgTime > STALE_THRESHOLD_MS) {

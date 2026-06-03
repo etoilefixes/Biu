@@ -202,6 +202,9 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
             {status === 'sending' && (
               <span className="text-gray-500 text-[11px] animate-pulse-subtle font-body">发送中</span>
             )}
+            {status === 'sent' && (
+              <span className="text-gray-600 text-[11px] font-body">已发送</span>
+            )}
             {isStreaming && (
               <span className="text-biu-primary/60 text-[11px] animate-pulse-subtle font-body">AI 思考中</span>
             )}
