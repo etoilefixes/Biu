@@ -8,6 +8,7 @@ import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, Icon
 import AvatarWithBadge from './AvatarWithBadge';
 import UserBadge from './UserBadge';
 import AiRoleModal from './AiRoleModal';
+import api from '../services/api';
 
 function formatBadge(count: number): string {
   if (count <= 0) return '';
@@ -37,6 +38,7 @@ export default function NavBar() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [markdownEnabled, setMarkdownEnabled] = useState(true);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'ai'>('general');
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -190,8 +192,29 @@ export default function NavBar() {
               <IconX size={16} />
             </button>
           </div>
+          {/* Tab 切换 */}
+          <div className="flex px-5 pt-3 gap-1">
+            <button
+              onClick={() => setSettingsTab('general')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-body transition ${
+                settingsTab === 'general' ? 'bg-biu-primary/15 text-biu-primary' : 'text-gray-500 hover:text-white'
+              }`}
+            >
+              通用
+            </button>
+            <button
+              onClick={() => setSettingsTab('ai')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-body transition ${
+                settingsTab === 'ai' ? 'bg-biu-primary/15 text-biu-primary' : 'text-gray-500 hover:text-white'
+              }`}
+            >
+              AI 设置
+            </button>
+          </div>
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            <div className="flex items-center gap-3">
+            {settingsTab === 'general' ? (
+              <>
+              <div className="flex items-center gap-3">
               <AvatarWithBadge
                 fallback={user?.nickname?.[0] || 'B'}
                 badges={user?.badges}
@@ -279,6 +302,10 @@ export default function NavBar() {
                 </div>
               </div>
             </div>
+              </>
+            ) : (
+              <AiSettingsPanel />
+            )}
           </div>
           <div className="px-5 py-4 border-t border-white/5">
             <button
@@ -383,5 +410,281 @@ export default function NavBar() {
         <AiRoleModal onClose={() => setShowAiRoleModal(false)} />
       )}
     </>
+  );
+}
+
+/** AI 设置面板 */
+function AiSettingsPanel() {
+  const [config, setConfig] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; models?: string[] } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+
+  // 表单状态
+  const [provider, setProvider] = useState('openai-compatible');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [chatModel, setChatModel] = useState('');
+  const [reasoningModel, setReasoningModel] = useState('');
+  const [reasoningEnabled, setReasoningEnabled] = useState(false);
+  const [reasoningMode, setReasoningMode] = useState('none');
+  const [reasoningDisplay, setReasoningDisplay] = useState('hidden');
+  const [streamingEnabled, setStreamingEnabled] = useState(true);
+  const [temperature, setTemperature] = useState(0.7);
+  const [maxTokens, setMaxTokens] = useState(2000);
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
+  const loadConfig = async () => {
+    try {
+      setLoading(true);
+      const res: any = await api.get('/ai-roles/config/model');
+      const data = res.data;
+      setConfig(data);
+      setProvider(data.provider || 'openai-compatible');
+      setBaseUrl(data.baseUrl || '');
+      setChatModel(data.chatModel || '');
+      setReasoningModel(data.reasoningModel || '');
+      setReasoningEnabled(data.reasoningEnabled || false);
+      setReasoningMode(data.reasoningMode || 'none');
+      setReasoningDisplay(data.reasoningDisplay || 'hidden');
+      setStreamingEnabled(data.streamingEnabled ?? true);
+      setTemperature(data.temperature ?? 0.7);
+      setMaxTokens(data.maxTokens ?? 2000);
+    } catch (err: any) {
+      setToast({ message: '加载配置失败', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await api.put('/ai-roles/config/model', {
+        provider,
+        baseUrl,
+        apiKey: apiKey || undefined,
+        chatModel,
+        reasoningModel: reasoningModel || null,
+        reasoningEnabled,
+        reasoningMode,
+        reasoningDisplay,
+        streamingEnabled,
+        temperature,
+        maxTokens,
+      });
+      setApiKey(''); // 清空，不保留在前端
+      setToast({ message: '保存成功', type: 'success' });
+      await loadConfig();
+    } catch (err: any) {
+      setToast({ message: err.message || '保存失败', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    try {
+      setTesting(true);
+      setTestResult(null);
+      const res: any = await api.post('/ai-roles/config/test', {
+        provider,
+        baseUrl,
+        apiKey,
+      });
+      setTestResult(res.data);
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.message || '测试失败' });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-12"><p className="text-gray-500 text-sm font-body">加载中...</p></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      <div>
+        <h3 className="text-gray-500 text-xs font-medium mb-3">服务商</h3>
+        <select
+          value={provider}
+          onChange={(e) => setProvider(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
+        >
+          <option value="openai-compatible" className="bg-biu-dark">OpenAI Compatible</option>
+          <option value="deepseek" className="bg-biu-dark">DeepSeek</option>
+          <option value="qwen" className="bg-biu-dark">通义千问</option>
+          <option value="ollama" className="bg-biu-dark">Ollama (本地)</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="text-gray-500 text-xs font-medium mb-1 block">接口地址 (Base URL)</label>
+        <input
+          type="text"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://api.deepseek.com/v1"
+          className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+        />
+      </div>
+
+      <div>
+        <label className="text-gray-500 text-xs font-medium mb-1 block">
+          API Key {config?.hasApiKey && <span className="text-biu-primary">(已配置)</span>}
+        </label>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={config?.hasApiKey ? '••••••••（留空保持不变）' : '输入 API Key'}
+          className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+        />
+      </div>
+
+      <div>
+        <label className="text-gray-500 text-xs font-medium mb-1 block">默认聊天模型</label>
+        <input
+          type="text"
+          value={chatModel}
+          onChange={(e) => setChatModel(e.target.value)}
+          placeholder="deepseek-chat"
+          className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+        />
+      </div>
+
+      <div className="pt-3 border-t border-white/5">
+        <h3 className="text-gray-500 text-xs font-medium mb-3">思考模型</h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white text-sm font-body">启用思考模型</p>
+              <p className="text-gray-600 text-[11px] font-body">使用推理模型（如 deepseek-reasoner）</p>
+            </div>
+            <button
+              onClick={() => setReasoningEnabled(!reasoningEnabled)}
+              className={`w-10 h-6 rounded-full transition-all duration-200 relative ${reasoningEnabled ? 'bg-biu-primary' : 'bg-white/10'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${reasoningEnabled ? 'left-5' : 'left-1'}`} />
+            </button>
+          </div>
+          {reasoningEnabled && (
+            <>
+              <div>
+                <label className="text-gray-500 text-xs font-medium mb-1 block">思考模型名称</label>
+                <input
+                  type="text"
+                  value={reasoningModel}
+                  onChange={(e) => setReasoningModel(e.target.value)}
+                  placeholder="deepseek-reasoner"
+                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+                />
+              </div>
+              <div>
+                <label className="text-gray-500 text-xs font-medium mb-1 block">思考内容展示</label>
+                <select
+                  value={reasoningDisplay}
+                  onChange={(e) => setReasoningDisplay(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
+                >
+                  <option value="hidden" className="bg-biu-dark">隐藏</option>
+                  <option value="visible" className="bg-biu-dark">显示</option>
+                </select>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="pt-3 border-t border-white/5">
+        <h3 className="text-gray-500 text-xs font-medium mb-3">高级参数</h3>
+        <div className="space-y-3">
+          <div>
+            <label className="text-gray-500 text-xs font-medium mb-1 block">
+              创造性 (Temperature): {temperature.toFixed(1)}
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1.5"
+              step="0.1"
+              value={temperature}
+              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              className="w-full accent-biu-primary"
+            />
+            <div className="flex justify-between text-[10px] text-gray-600 font-body mt-0.5">
+              <span>精确</span>
+              <span>创造</span>
+            </div>
+          </div>
+          <div>
+            <label className="text-gray-500 text-xs font-medium mb-1 block">最大回复长度 (maxTokens)</label>
+            <input
+              type="number"
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(parseInt(e.target.value) || 2000)}
+              min={100}
+              max={8000}
+              className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white text-sm font-body">流式输出</p>
+              <p className="text-gray-600 text-[11px] font-body">逐字输出回复（暂未实现）</p>
+            </div>
+            <button
+              onClick={() => setStreamingEnabled(!streamingEnabled)}
+              className={`w-10 h-6 rounded-full transition-all duration-200 relative ${streamingEnabled ? 'bg-biu-primary' : 'bg-white/10'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${streamingEnabled ? 'left-5' : 'left-1'}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 连接测试 */}
+      <div className="pt-3 border-t border-white/5">
+        <button
+          onClick={handleTest}
+          disabled={testing || !baseUrl}
+          className="w-full py-2 rounded-lg bg-white/5 text-gray-300 text-sm font-body hover:bg-white/10 transition disabled:opacity-30"
+        >
+          {testing ? '测试中...' : '测试连接'}
+        </button>
+        {testResult && (
+          <div className={`mt-2 p-2 rounded-lg text-xs font-body ${testResult.success ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+            {testResult.message}
+            {testResult.models && testResult.models.length > 0 && (
+              <div className="mt-1 text-gray-500">
+                可用模型: {testResult.models.slice(0, 5).join(', ')}{testResult.models.length > 5 ? '...' : ''}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 保存 */}
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full py-2.5 rounded-xl bg-biu-primary text-biu-dark text-sm font-body font-500 hover:bg-biu-primary-dim transition disabled:opacity-30"
+      >
+        {saving ? '保存中...' : '保存配置'}
+      </button>
+
+      {config?.source === 'env' && (
+        <p className="text-gray-600 text-[11px] font-body text-center">当前配置来自环境变量，保存后将存入数据库</p>
+      )}
+    </div>
   );
 }

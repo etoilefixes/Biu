@@ -11,13 +11,16 @@ interface AiRole {
   name: string;
   avatar: string | null;
   description: string | null;
-  personality: string | null;
+  systemPrompt: string | null;
   speakingStyle: string | null;
   forbiddenTopics: string | null;
   greeting: string | null;
+  model: string | null;
+  useReasoning: boolean;
   replyLength: string;
   temperature: number;
-  isPublic: boolean;
+  maxTokens: number;
+  visibility: string;
   userId: string;
   creator: { id: string; nickname: string; avatar: string | null };
   createdAt: string;
@@ -241,13 +244,16 @@ function AiRoleEditor({
   const [name, setName] = useState(role?.name || '');
   const [avatar, setAvatar] = useState(role?.avatar || '');
   const [description, setDescription] = useState(role?.description || '');
-  const [personality, setPersonality] = useState(role?.personality || '');
+  const [systemPrompt, setSystemPrompt] = useState(role?.systemPrompt || '');
   const [speakingStyle, setSpeakingStyle] = useState(role?.speakingStyle || '');
   const [forbiddenTopics, setForbiddenTopics] = useState(role?.forbiddenTopics || '');
   const [greeting, setGreeting] = useState(role?.greeting || '');
+  const [model, setModel] = useState(role?.model || '');
+  const [useReasoning, setUseReasoning] = useState(role?.useReasoning ?? false);
   const [replyLength, setReplyLength] = useState(role?.replyLength || 'medium');
   const [temperature, setTemperature] = useState(role?.temperature || 0.7);
-  const [isPublic, setIsPublic] = useState(role?.isPublic ?? true);
+  const [maxTokens, setMaxTokens] = useState(role?.maxTokens || 2000);
+  const [visibility, setVisibility] = useState(role?.visibility || 'public');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
 
@@ -263,13 +269,16 @@ function AiRoleEditor({
         name: name.trim(),
         avatar: avatar.trim() || null,
         description: description.trim() || null,
-        personality: personality.trim() || null,
+        systemPrompt: systemPrompt.trim() || null,
         speakingStyle: speakingStyle.trim() || null,
         forbiddenTopics: forbiddenTopics.trim() || null,
         greeting: greeting.trim() || null,
+        model: model.trim() || null,
+        useReasoning,
         replyLength,
         temperature,
-        isPublic,
+        maxTokens,
+        visibility,
       };
 
       if (role) {
@@ -333,12 +342,12 @@ function AiRoleEditor({
           <h3 className="text-white text-sm font-display font-600 mb-3">角色设定</h3>
           <div className="space-y-3">
             <div>
-              <label className="text-gray-500 text-xs font-medium mb-1 block">人设 / 性格</label>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">人设 Prompt</label>
               <textarea
-                value={personality}
-                onChange={(e) => setPersonality(e.target.value)}
-                placeholder="描述角色的性格特点，如：温柔、幽默、理性..."
-                rows={3}
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                placeholder="描述角色的核心人设，这是发送给 AI 的系统提示词。如：你是一位来自古代的智者，博学多才，说话富有哲理..."
+                rows={4}
                 className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body resize-none"
               />
             </div>
@@ -380,6 +389,29 @@ function AiRoleEditor({
           <h3 className="text-white text-sm font-display font-600 mb-3">参数设置</h3>
           <div className="space-y-3">
             <div>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">使用模型</label>
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="留空使用全局默认模型"
+                className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+              />
+              <p className="text-gray-600 text-[11px] font-body mt-0.5">留空则使用全局 AI 设置中的默认模型</p>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white text-sm font-body">启用思考模型</p>
+                <p className="text-gray-600 text-[11px] font-body">使用推理模型（如 deepseek-reasoner）</p>
+              </div>
+              <button
+                onClick={() => setUseReasoning(!useReasoning)}
+                className={`w-10 h-6 rounded-full transition-all duration-200 relative ${useReasoning ? 'bg-biu-primary' : 'bg-white/10'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${useReasoning ? 'left-5' : 'left-1'}`} />
+              </button>
+            </div>
+            <div>
               <label className="text-gray-500 text-xs font-medium mb-1 block">回复长度</label>
               <div className="flex gap-2">
                 {[
@@ -419,17 +451,38 @@ function AiRoleEditor({
                 <span>创造</span>
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white text-sm font-body">公开角色</p>
-                <p className="text-gray-600 text-[11px] font-body">其他用户可以看到并使用此角色</p>
+            <div>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">最大回复长度 (maxTokens)</label>
+              <input
+                type="number"
+                value={maxTokens}
+                onChange={(e) => setMaxTokens(parseInt(e.target.value) || 2000)}
+                min={100}
+                max={8000}
+                className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body"
+              />
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">可见性</label>
+              <div className="flex gap-2">
+                {[
+                  { value: 'public', label: '公开' },
+                  { value: 'private', label: '私有' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setVisibility(opt.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-body transition ${
+                      visibility === opt.value
+                        ? 'bg-biu-primary/20 text-biu-primary'
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
-              <button
-                onClick={() => setIsPublic(!isPublic)}
-                className={`w-10 h-6 rounded-full transition-all duration-200 relative ${isPublic ? 'bg-biu-primary' : 'bg-white/10'}`}
-              >
-                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${isPublic ? 'left-5' : 'left-1'}`} />
-              </button>
+              <p className="text-gray-600 text-[11px] font-body mt-0.5">公开角色所有用户可见，私有仅自己可见</p>
             </div>
           </div>
         </div>

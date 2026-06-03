@@ -48,30 +48,23 @@ export default function ConversationItem({
     : null;
 
   const isSystemConv = !!otherMember?.user?.isSystem;
-  const isAiRoleConv = isSystemConv && otherMember?.user?.username?.startsWith('ai_role_');
 
   const displayName =
     conversation.type === 'group'
       ? conversation.name
-      : isAiRoleConv
-        ? (otherMember?.user?.nickname || 'AI 角色')
-        : isSystemConv
-          ? 'Biu团队'
-          : otherMember?.user?.nickname || '未知用户';
+      : isSystemConv
+        ? 'Biu团队'
+        : otherMember?.user?.nickname || '未知用户';
 
-  const avatarFallback = isAiRoleConv
-    ? (otherMember?.user?.nickname?.[0] || '🤖')
-    : isSystemConv
-      ? '🔔'
-      : conversation.type === 'group'
-        ? conversation.name?.[0] || '群'
-        : otherMember?.user?.nickname?.[0] || '?';
+  const avatarFallback = isSystemConv
+    ? '🔔'
+    : conversation.type === 'group'
+      ? conversation.name?.[0] || '群'
+      : otherMember?.user?.nickname?.[0] || '?';
 
-  const systemBadges = isAiRoleConv
-    ? [{ type: 'AI', label: 'AI', icon: 'bot', color: '#8B5CF6', description: 'AI 角色' }]
-    : isSystemConv
-      ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
-      : [];
+  const systemBadges = isSystemConv
+    ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
+    : [];
 
   const otherBadges = otherMember?.user ? otherMember.user.badges : undefined;
 
@@ -213,7 +206,7 @@ export default function ConversationItem({
     [conversation.id, onDelete]
   );
 
-  const canDelete = !isSystemConv || isAiRoleConv;
+  const canDelete = !isSystemConv;
 
   const translateX = isOpened ? -DELETE_WIDTH : 0;
 
@@ -247,7 +240,7 @@ export default function ConversationItem({
         <div className="relative shrink-0">
           <AvatarWithBadge
             fallback={avatarFallback}
-            isSystem={isSystemConv && !isAiRoleConv}
+            isSystem={isSystemConv}
             badges={isSystemConv ? systemBadges : otherBadges}
             size="md"
           />
