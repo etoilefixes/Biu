@@ -9,5 +9,6 @@ router.delete('/users/:id', authMiddleware, controller.deleteUser);
 router.post('/channels', authMiddleware, controller.createOfficialChannel);
 router.post('/broadcast', authMiddleware, controller.sendBroadcast);
 router.put('/users/:id/role', authMiddleware, controller.setUserRole);
+router.put('/users/:id/official-status', authMiddleware, controller.setUserOfficialStatus);
 
 export default router;

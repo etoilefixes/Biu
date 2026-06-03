@@ -15,9 +15,10 @@ model User {
   nickname     String   @db.VarChar(100)
   avatar       String?  @db.VarChar(500)
   status       String   @default("offline") @db.VarChar(20)
-  isSystem     Boolean  @default(false) @map("is_system")
-  role         String   @default("user") @db.VarChar(20)
-  createdAt    DateTime @default(now()) @map("created_at")
+  isSystem       Boolean  @default(false) @map("is_system")
+  role           String   @default("user") @db.VarChar(20)
+  officialStatus String   @default("none") @map("official_status") @db.VarChar(20)
+  createdAt      DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   conversations ConversationMember[]

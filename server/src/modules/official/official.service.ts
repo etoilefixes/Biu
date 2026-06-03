@@ -1,17 +1,19 @@
 import { prisma } from '../../config/database';
 import { redis } from '../../config/redis';
 import { io } from '../../socket';
+import { generateConversationBiuId } from '../../utils/biuId';
+import { canAccessAdmin, canUpdateUserRole, canUpdateOfficialStatus, Permission, hasSystemPermission } from '../auth/permissions';
 
 const SYSTEM_USER_ID = 'system';
 
 export async function isOfficialUser(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  return user?.role === 'official' || user?.role === 'admin';
+  return canAccessAdmin(user!);
 }
 
 export async function getAllUsers(officialUserId: string) {
-  const isOfficial = await isOfficialUser(officialUserId);
-  if (!isOfficial) throw new Error('无权限');
+  const user = await prisma.user.findUnique({ where: { id: officialUserId } });
+  if (!user || !hasSystemPermission(user, Permission.UserRead)) throw new Error('无权限');
 
   const users = await prisma.user.findMany({
     where: { id: { not: SYSTEM_USER_ID } },
@@ -19,28 +21,30 @@ export async function getAllUsers(officialUserId: string) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return users.map(user => ({
-    id: user.id,
-    biuId: user.biuId,
-    username: user.username,
-    nickname: user.nickname,
-    avatar: user.avatar,
-    status: user.status,
-    role: user.role,
-    badges: (user.badges || []).map(ub => ({
+  return users.map(u => ({
+    id: u.id,
+    biuId: u.biuId,
+    username: u.username,
+    nickname: u.nickname,
+    avatar: u.avatar,
+    status: u.status,
+    role: u.role,
+    officialStatus: u.officialStatus,
+    badges: (u.badges || []).map(ub => ({
       type: ub.badge.type,
       label: ub.badge.label,
       icon: ub.badge.icon,
       color: ub.badge.color,
     })),
-    createdAt: user.createdAt.toISOString(),
+    createdAt: u.createdAt.toISOString(),
   }));
 }
 
 export async function deleteUser(officialUserId: string, targetUserId: string) {
-  const isOfficial = await isOfficialUser(officialUserId);
-  if (!isOfficial) throw new Error('无权限');
+  const user = await prisma.user.findUnique({ where: { id: officialUserId } });
+  if (!user || !hasSystemPermission(user, Permission.UserDelete)) throw new Error('无权限');
   if (targetUserId === SYSTEM_USER_ID) throw new Error('无法删除系统用户');
+  if (targetUserId === officialUserId) throw new Error('不能删除自己');
 
   await prisma.user.delete({ where: { id: targetUserId } });
   return { success: true };
@@ -50,11 +54,12 @@ export async function createOfficialChannel(
   officialUserId: string,
   data: { name: string; memberIds: string[] }
 ) {
-  const isOfficial = await isOfficialUser(officialUserId);
-  if (!isOfficial) throw new Error('无权限');
+  const user = await prisma.user.findUnique({ where: { id: officialUserId } });
+  if (!user || !hasSystemPermission(user, Permission.OfficialChannelCreate)) throw new Error('无权限');
 
   const conversation = await prisma.conversation.create({
     data: {
+      biuId: generateConversationBiuId(),
       type: 'group',
       name: data.name,
       creatorId: officialUserId,
@@ -89,8 +94,8 @@ export async function sendBroadcast(
   officialUserId: string,
   data: { title: string; content: string; cardType?: string }
 ) {
-  const isOfficial = await isOfficialUser(officialUserId);
-  if (!isOfficial) throw new Error('无权限');
+  const user = await prisma.user.findUnique({ where: { id: officialUserId } });
+  if (!user || !hasSystemPermission(user, Permission.OfficialBroadcast)) throw new Error('无权限');
 
   const allUsers = await prisma.user.findMany({
     where: { id: { not: SYSTEM_USER_ID } },
@@ -99,16 +104,17 @@ export async function sendBroadcast(
 
   const results = [];
 
-  for (const user of allUsers) {
+  for (const u of allUsers) {
     const conversation = await prisma.conversation.create({
       data: {
+        biuId: generateConversationBiuId(),
         type: 'private',
         creatorId: SYSTEM_USER_ID,
         ownerId: SYSTEM_USER_ID,
         members: {
           create: [
             { userId: SYSTEM_USER_ID },
-            { userId: user.id },
+            { userId: u.id },
           ],
         },
       },
@@ -125,7 +131,7 @@ export async function sendBroadcast(
       },
     });
 
-    io?.to(user.id).emit('message:received', {
+    io?.to(u.id).emit('message:received', {
       id: message.id,
       conversationId: conversation.id,
       content: message.content,
@@ -139,7 +145,7 @@ export async function sendBroadcast(
       },
     });
 
-    results.push({ userId: user.id, messageId: message.id });
+    results.push({ userId: u.id, messageId: message.id });
   }
 
   return { sent: results.length, success: true };
@@ -148,10 +154,14 @@ export async function sendBroadcast(
 export async function setUserRole(
   officialUserId: string,
   targetUserId: string,
-  role: 'user' | 'admin' | 'official'
+  role: 'user' | 'admin' | 'super_admin'
 ) {
-  const isOfficial = await isOfficialUser(officialUserId);
-  if (!isOfficial) throw new Error('无权限');
+  const actor = await prisma.user.findUnique({ where: { id: officialUserId } });
+  if (!actor) throw new Error('用户不存在');
+
+  // 修改角色需要 UserRoleUpdate 权限（仅 super_admin）
+  if (!canUpdateUserRole(actor)) throw new Error('无权修改用户角色，需要超级管理员权限');
+  if (officialUserId === targetUserId) throw new Error('不能修改自己的角色');
 
   const user = await prisma.user.update({
     where: { id: targetUserId },
@@ -159,7 +169,33 @@ export async function setUserRole(
     include: { badges: { include: { badge: true } } },
   });
 
-  if (role === 'official' || role === 'admin') {
+  return {
+    id: user.id,
+    biuId: user.biuId,
+    nickname: user.nickname,
+    role: user.role,
+  };
+}
+
+export async function setUserOfficialStatus(
+  actorUserId: string,
+  targetUserId: string,
+  officialStatus: 'none' | 'verified'
+) {
+  const actor = await prisma.user.findUnique({ where: { id: actorUserId } });
+  if (!actor) throw new Error('用户不存在');
+
+  if (!canUpdateOfficialStatus(actor)) throw new Error('无权修改官方认证状态');
+  if (actorUserId === targetUserId) throw new Error('不能修改自己的认证状态');
+
+  const user = await prisma.user.update({
+    where: { id: targetUserId },
+    data: { officialStatus },
+    include: { badges: { include: { badge: true } } },
+  });
+
+  // 官方认证用户自动分配官方徽章
+  if (officialStatus === 'verified') {
     await prisma.userBadge.upsert({
       where: { userId_badgeId: { userId: targetUserId, badgeId: 'official_badge' } },
       update: {},
@@ -169,6 +205,11 @@ export async function setUserRole(
         badgeId: 'official_badge',
       },
     });
+  } else {
+    // 取消认证时移除官方徽章
+    await prisma.userBadge.deleteMany({
+      where: { userId: targetUserId, badgeId: 'official_badge' },
+    });
   }
 
   return {
@@ -176,5 +217,6 @@ export async function setUserRole(
     biuId: user.biuId,
     nickname: user.nickname,
     role: user.role,
+    officialStatus: user.officialStatus,
   };
 }

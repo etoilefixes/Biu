@@ -6,7 +6,8 @@ export interface User {
   avatar: string | null;
   status: 'online' | 'offline' | 'away';
   isSystem?: boolean;
-  role: 'user' | 'admin' | 'official';
+  role: 'user' | 'admin' | 'super_admin';
+  officialStatus?: 'none' | 'verified';
   badges?: Badge[];
   createdAt: string;
   updatedAt: string;
@@ -40,6 +41,7 @@ export interface ConversationMember {
   conversationId: string;
   userId: string;
   nickname?: string | null;
+  role: 'owner' | 'admin' | 'member';
   joinedAt: string;
   user?: User & { isSystem?: boolean };
 }

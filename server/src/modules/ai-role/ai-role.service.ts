@@ -1,6 +1,7 @@
 import { prisma } from '../../config/database';
 import { generateConversationBiuId } from '../../utils/biuId';
 import * as badgeService from '../badge/badge.service';
+import { canUpdateAiCharacter, canDeleteAiCharacter, canUpdateAiCharacterOverride } from '../auth/permissions';
 
 export async function listRoles(userId: string) {
   const roles = await prisma.aiRole.findMany({
@@ -93,7 +94,7 @@ export async function updateRole(
   const existing = await prisma.aiRole.findUnique({ where: { id } });
   if (!existing) throw new Error('角色不存在');
 
-  const isOwner = existing.userId === userId;
+  const isOwner = canUpdateAiCharacter(userId, existing);
 
   // AI 参数字段：所有用户都可以修改（非创建者通过用户级覆盖表）
   const aiParamFields = ['model', 'useReasoning', 'replyLength', 'temperature', 'maxTokens'] as const;
@@ -163,7 +164,7 @@ export async function updateRole(
 export async function deleteRole(id: string, userId: string) {
   const existing = await prisma.aiRole.findUnique({ where: { id } });
   if (!existing) throw new Error('角色不存在');
-  if (existing.userId !== userId) throw new Error('无权删除此角色');
+  if (!canDeleteAiCharacter(userId, existing)) throw new Error('无权删除此角色');
 
   await prisma.aiRole.delete({ where: { id } });
   return { success: true };

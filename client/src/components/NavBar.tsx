@@ -113,7 +113,7 @@ export default function NavBar() {
     { path: '/contacts', icon: <IconContacts size={20} />, label: '联系人' },
   ];
 
-  const isOfficial = user?.role === 'official' || user?.role === 'admin';
+  const isOfficial = user?.role === 'admin' || user?.role === 'super_admin';
   const isAIUser = user?.username === 'biu_ai' || user?.badges?.some((b) => b.type === 'AI');
   return (
     <>

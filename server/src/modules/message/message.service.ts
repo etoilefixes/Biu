@@ -1,4 +1,6 @@
 import { prisma } from '../../config/database';
+import { redis } from '../../config/redis';
+import { canSendMessage } from '../auth/permissions';
 
 function parseMentions(content: string) {
   const mentions: string[] = [];
@@ -26,6 +28,11 @@ export async function getMessages(
     throw new Error('无权访问此会话');
   }
 
+  // Fetch lastReadAt BEFORE markAsRead updates it — this is the anchor
+  const readKey = `read:${userId}:${conversationId}`;
+  const lastReadAtStr = await redis.get(readKey);
+  const lastReadAt = lastReadAtStr || null;
+
   const where: any = { conversationId };
   if (before) {
     where.createdAt = { lt: new Date(before) };
@@ -42,7 +49,7 @@ export async function getMessages(
     take: limit,
   });
 
-  return messages
+  const formatted = messages
     .reverse()
     .map((m) => ({
       id: m.id,
@@ -67,6 +74,8 @@ export async function getMessages(
         })),
       },
     }));
+
+  return { messages: formatted, lastReadAt };
 }
 
 export async function createMessage(
@@ -81,7 +90,11 @@ export async function createMessage(
     where: { conversationId, userId: senderId },
   });
 
-  if (!membership) {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+  });
+
+  if (!conversation || !canSendMessage(conversation, membership)) {
     throw new Error('无权在此会话发送消息');
   }
 

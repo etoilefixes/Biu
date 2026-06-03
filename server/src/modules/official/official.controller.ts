@@ -49,3 +49,16 @@ export async function setUserRole(req: Request, res: Response, next: NextFunctio
     next(e);
   }
 }
+
+export async function setUserOfficialStatus(req: Request, res: Response, next: NextFunction) {
+  try {
+    const user = await officialService.setUserOfficialStatus(
+      (req as any).userId,
+      req.params.id as string,
+      req.body.officialStatus
+    );
+    res.json({ code: 0, data: user });
+  } catch (e) {
+    next(e);
+  }
+}

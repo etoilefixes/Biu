@@ -1,10 +1,6 @@
 import { prisma } from '../../config/database';
-
-// 生成2开头的六位数BiuId
-function generateGroupBiuId(): string {
-  const randomNum = Math.floor(100000 + Math.random() * 900000);
-  return `2${randomNum.toString().slice(1)}`;
-}
+import { generateConversationBiuId, generateGroupBiuId } from '../../utils/biuId';
+import { isConversationManager, canRemoveConversationMember, canConversationAction } from '../auth/permissions';
 
 export async function getConversations(userId: string) {
   const memberships = await prisma.conversationMember.findMany({
@@ -72,6 +68,7 @@ export async function getConversations(userId: string) {
         conversationId: mem.conversationId,
         userId: mem.userId,
         nickname: mem.nickname,
+        role: mem.role as 'owner' | 'admin' | 'member',
         joinedAt: mem.joinedAt.toISOString(),
         user: {
           ...mem.user,
@@ -120,7 +117,14 @@ async function getLastReadAt(userId: string, conversationId: string): Promise<Da
   const { redis } = await import('../../config/redis');
   const key = `read:${userId}:${conversationId}`;
   const data = await redis.get(key);
-  return data ? new Date(data) : null;
+  if (data) return new Date(data);
+
+  // Fallback: read from DB (survives Redis restart)
+  const read = await prisma.conversationRead.findFirst({
+    where: { conversationId, userId },
+    select: { lastReadAt: true },
+  });
+  return read?.lastReadAt ?? null;
 }
 
 export async function markAsRead(userId: string, conversationId: string) {
@@ -138,7 +142,7 @@ export async function markAsRead(userId: string, conversationId: string) {
     const unreadKey = `unread:${userId}:${conversationId}`;
     await redis.set(unreadKey, '0');
     
-    // Clear mention status
+    // Clear mention status and persist lastReadAt to DB
     await prisma.conversationRead.upsert({
       where: {
         conversationId_userId: {
@@ -149,10 +153,12 @@ export async function markAsRead(userId: string, conversationId: string) {
       create: {
         conversationId,
         userId,
+        lastReadAt: lastMessage.createdAt,
         mentioned: false,
         mentionedAll: false,
       },
       update: {
+        lastReadAt: lastMessage.createdAt,
         mentioned: false,
         mentionedAll: false,
       },
@@ -184,7 +190,7 @@ export async function markAllAsRead(userId: string) {
       const unreadKey = `unread:${userId}:${m.conversationId}`;
       await redis.set(unreadKey, '0');
       
-      // Clear mention status
+      // Clear mention status and persist lastReadAt to DB
       await prisma.conversationRead.upsert({
         where: {
           conversationId_userId: {
@@ -195,10 +201,12 @@ export async function markAllAsRead(userId: string) {
         create: {
           conversationId: m.conversationId,
           userId,
+          lastReadAt: lastMessage.createdAt,
           mentioned: false,
           mentionedAll: false,
         },
         update: {
+          lastReadAt: lastMessage.createdAt,
           mentioned: false,
           mentionedAll: false,
         },
@@ -286,11 +294,11 @@ export async function createConversation(
       name: data.name || null,
       creatorId: userId,
       ownerId: userId,
-      biuId: biuId || crypto.randomUUID(),
+      biuId: biuId || generateConversationBiuId(),
       members: {
         create: [
-          { userId },
-          ...data.memberIds.map((memberId) => ({ userId: memberId })),
+          { userId, role: 'owner' },
+          ...data.memberIds.map((memberId) => ({ userId: memberId, role: 'member' })),
         ],
       },
     },
@@ -350,7 +358,7 @@ export async function updateGroupName(
   });
 
   if (conversation?.type !== 'group') throw new Error('只能修改群聊名称');
-  if (conversation.ownerId !== userId) throw new Error('只有群主可以修改群名称');
+  await requireAdminOrOwner(conversationId, userId);
 
   const updated = await prisma.conversation.update({
     where: { id: conversationId },
@@ -424,7 +432,7 @@ export async function setAnnouncement(
   });
 
   if (conversation?.type !== 'group') throw new Error('只能设置群聊公告');
-  if (conversation.ownerId !== userId) throw new Error('只有群主可以设置公告');
+  await requireAdminOrOwner(conversationId, userId);
 
   const updated = await prisma.conversation.update({
     where: { id: conversationId },
@@ -458,7 +466,19 @@ export async function removeMember(
   });
 
   if (conversation?.type !== 'group') throw new Error('只能在群聊中移除成员');
-  if (conversation.ownerId !== userId) throw new Error('只有群主可以移除成员');
+  await requireAdminOrOwner(conversationId, userId);
+
+  // 不允许移除自己（请使用退出群聊）
+  if (memberId === userId) throw new Error('不能移除自己，请使用退出群聊');
+
+  // 检查被移除者的角色
+  const targetRole = await getMemberRole(conversationId, memberId);
+  const callerRole = await getMemberRole(conversationId, userId);
+
+  // 管理员不能移除群主或其他管理员
+  if (callerRole === 'admin' && (targetRole === 'owner' || targetRole === 'admin')) {
+    throw new Error('管理员不能移除群主或其他管理员');
+  }
 
   const memberToRemove = await prisma.conversationMember.findFirst({
     where: { id: memberId, conversationId },
@@ -499,7 +519,11 @@ export async function leaveGroup(
 
   // 如果是群主，需要转移群主权限
   if (conversation.ownerId === userId) {
+    // 优先转给管理员，其次最早加入的成员
     const newOwner = await prisma.conversationMember.findFirst({
+      where: { conversationId, userId: { not: userId }, role: 'admin' },
+      orderBy: { joinedAt: 'asc' },
+    }) || await prisma.conversationMember.findFirst({
       where: { conversationId, userId: { not: userId } },
       orderBy: { joinedAt: 'asc' },
     });
@@ -507,6 +531,11 @@ export async function leaveGroup(
       await prisma.conversation.update({
         where: { id: conversationId },
         data: { ownerId: newOwner.userId },
+      });
+      // 更新新群主的角色
+      await prisma.conversationMember.update({
+        where: { id: newOwner.id },
+        data: { role: 'owner' },
       });
     }
   }
@@ -541,6 +570,83 @@ export async function dissolveGroup(
   return { success: true };
 }
 
+/**
+ * 设置成员角色（仅群主可操作）
+ * 可将成员设为管理员，或取消管理员身份
+ */
+export async function setMemberRole(
+  userId: string,
+  conversationId: string,
+  memberId: string,
+  role: 'admin' | 'member'
+) {
+  const callerRole = await getMemberRole(conversationId, userId);
+  if (callerRole !== 'owner') throw new Error('只有群主可以设置成员角色');
+
+  const targetMember = await prisma.conversationMember.findFirst({
+    where: { id: memberId, conversationId },
+  });
+  if (!targetMember) throw new Error('成员不存在');
+
+  // 不能修改群主自己的角色
+  if (targetMember.userId === userId) throw new Error('不能修改自己的角色');
+
+  // 不能把群主设为其他角色
+  if (targetMember.role === 'owner') throw new Error('不能修改群主角色');
+
+  await prisma.conversationMember.update({
+    where: { id: memberId },
+    data: { role },
+  });
+
+  return { success: true };
+}
+
+/**
+ * 转让群主（仅群主可操作）
+ */
+export async function transferOwnership(
+  userId: string,
+  conversationId: string,
+  newOwnerUserId: string
+) {
+  const callerRole = await getMemberRole(conversationId, userId);
+  if (callerRole !== 'owner') throw new Error('只有群主可以转让群主');
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+  });
+  if (conversation?.type !== 'group') throw new Error('只能在群聊中转让群主');
+
+  const newOwnerMember = await prisma.conversationMember.findFirst({
+    where: { conversationId, userId: newOwnerUserId },
+  });
+  if (!newOwnerMember) throw new Error('目标成员不存在');
+
+  // 更新 Conversation 的 ownerId
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: { ownerId: newOwnerUserId },
+  });
+
+  // 原群主降级为普通成员，新群主升级为 owner
+  const oldOwnerMember = await prisma.conversationMember.findFirst({
+    where: { conversationId, userId },
+  });
+  if (oldOwnerMember) {
+    await prisma.conversationMember.update({
+      where: { id: oldOwnerMember.id },
+      data: { role: 'member' },
+    });
+  }
+  await prisma.conversationMember.update({
+    where: { id: newOwnerMember.id },
+    data: { role: 'owner' },
+  });
+
+  return { success: true };
+}
+
 // 辅助函数：格式化会话数据
 function formatConversation(conversation: any, currentUserId: string) {
   return {
@@ -557,6 +663,7 @@ function formatConversation(conversation: any, currentUserId: string) {
       conversationId: m.conversationId,
       userId: m.userId,
       nickname: m.nickname,
+      role: m.role as 'owner' | 'admin' | 'member',
       joinedAt: m.joinedAt.toISOString(),
       user: {
         ...m.user,
@@ -571,6 +678,28 @@ function formatConversation(conversation: any, currentUserId: string) {
       },
     })),
   };
+}
+
+/**
+ * 获取用户在群聊中的角色，并校验权限
+ * @returns 用户的角色
+ */
+async function getMemberRole(conversationId: string, userId: string): Promise<string> {
+  const member = await prisma.conversationMember.findFirst({
+    where: { conversationId, userId },
+    select: { role: true },
+  });
+  return member?.role || 'member';
+}
+
+/**
+ * 校验用户是否有管理权限（群主或管理员）
+ */
+async function requireAdminOrOwner(conversationId: string, userId: string) {
+  const role = await getMemberRole(conversationId, userId);
+  if (!isConversationManager(role as any)) {
+    throw new Error('需要群主或管理员权限');
+  }
 }
 
 export async function addMemberToConversation(userId: string, conversationId: string, memberUserId: string) {
@@ -674,6 +803,7 @@ export async function getConversationDetail(conversationId: string, userId: stri
       id: m.id,
       conversationId: m.conversationId,
       userId: m.userId,
+      role: m.role as 'owner' | 'admin' | 'member',
       joinedAt: m.joinedAt.toISOString(),
       user: {
         ...m.user,

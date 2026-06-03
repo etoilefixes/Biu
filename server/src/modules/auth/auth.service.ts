@@ -2,14 +2,24 @@ import bcrypt from 'bcrypt';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../../config/database';
 import { config } from '../../config';
+import { generateConversationBiuId } from '../../utils/biuId';
 
 const SALT_ROUNDS = 10;
 const BIU_ID_START = 100001;
 const SYSTEM_USER_ID = 'system';
+const MAX_BIU_ID_RETRIES = 3;
 
-async function generateBiuId(): Promise<string> {
-  const lastUser = await prisma.user.findFirst({
-    orderBy: { createdAt: 'desc' },
+/**
+ * 生成下一个用户 BiuId（纯数字编号，如 100001Biu、100002Biu）
+ * - 只统计 isSystem=false 的真实用户，避免 SYSTEM_Biu / OFFICIAL_Biu 等污染
+ * - 对 parseInt 结果做 NaN 防护
+ * - 并发安全：外层 register() 捕获 P2002 后自动重试
+ */
+async function generateUserBiuId(txClient?: any): Promise<string> {
+  const db = txClient || prisma;
+  const lastUser = await db.user.findFirst({
+    where: { isSystem: false },
+    orderBy: { biuId: 'desc' },
     select: { biuId: true },
   });
 
@@ -18,6 +28,11 @@ async function generateBiuId(): Promise<string> {
   }
 
   const lastNum = parseInt(lastUser.biuId.replace('Biu', ''), 10);
+  if (isNaN(lastNum)) {
+    const count = await db.user.count({ where: { isSystem: false } });
+    return `${BIU_ID_START + count}Biu`;
+  }
+
   return `${lastNum + 1}Biu`;
 }
 
@@ -38,57 +53,100 @@ function formatUser(user: any) {
     status: user.status as 'online' | 'offline' | 'away',
     isSystem: user.isSystem || false,
     role: user.role || 'user',
+    officialStatus: user.officialStatus || 'none',
     badges,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
 }
 
+/** 自定义注册错误，携带 HTTP 状态码以便 Controller 区分 */
+export class RegisterError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = 'RegisterError';
+    this.statusCode = statusCode;
+  }
+}
+
 export async function register(data: { username: string; password: string; nickname: string }) {
+  // 1. 用户名去重
   const existing = await prisma.user.findUnique({ where: { username: data.username } });
   if (existing) {
-    throw new Error('用户名已存在');
+    throw new RegisterError('用户名已存在', 409);
   }
 
-  const biuId = await generateBiuId();
+  // 2. 密码哈希（放在事务外，避免 bcrypt 慢操作占用事务时间）
   const passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
-  const user = await prisma.user.create({
-    data: {
-      biuId,
-      username: data.username,
-      passwordHash,
-      nickname: data.nickname,
-    },
-    include: { badges: { include: { badge: true } } },
-  });
 
-  const token = jwt.sign({ userId: user.id }, config.jwtSecret, {
-    expiresIn: config.jwtExpiresIn as string,
-  } as SignOptions);
+  // 3. 带重试的事务执行（处理 biuId 并发竞态）
+  for (let attempt = 0; attempt < MAX_BIU_ID_RETRIES; attempt++) {
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const biuId = await generateUserBiuId(tx);
+        const convBiuId = generateConversationBiuId();
 
-  await prisma.friendRequest.create({
-    data: {
-      fromUserId: SYSTEM_USER_ID,
-      toUserId: user.id,
-      status: 'accepted',
-    },
-  });
+        // 3a. 创建用户
+        const user = await tx.user.create({
+          data: { biuId, username: data.username, passwordHash, nickname: data.nickname },
+          include: { badges: { include: { badge: true } } },
+        });
 
-  await prisma.conversation.create({
-    data: {
-      type: 'private',
-      creatorId: SYSTEM_USER_ID,
-      ownerId: SYSTEM_USER_ID,
-      members: {
-        create: [
-          { userId: SYSTEM_USER_ID },
-          { userId: user.id },
-        ],
-      },
-    },
-  });
+        // 3b. 创建与系统用户的好友关系
+        await tx.friendRequest.create({
+          data: { fromUserId: SYSTEM_USER_ID, toUserId: user.id, status: 'accepted' },
+        });
 
-  return { token, user: formatUser(user) };
+        // 3c. 创建与系统用户的欢迎会话
+        const conversation = await tx.conversation.create({
+          data: {
+            biuId: convBiuId,
+            type: 'private',
+            creatorId: SYSTEM_USER_ID,
+            ownerId: SYSTEM_USER_ID,
+            members: {
+              create: [
+                { userId: SYSTEM_USER_ID },
+                { userId: user.id },
+              ],
+            },
+          },
+        });
+
+        // 3d. 发送欢迎消息
+        await tx.message.create({
+          data: {
+            conversationId: conversation.id,
+            senderId: SYSTEM_USER_ID,
+            content: `欢迎加入 Biu团队！这里是 Biu 系统通知，有任何问题都可以随时联系我们 🎉`,
+          },
+        });
+
+        return user;
+      });
+
+      // 4. 生成 JWT（事务外执行，非数据库操作）
+      const token = jwt.sign({ userId: result.id }, config.jwtSecret, {
+        expiresIn: config.jwtExpiresIn as string,
+      } as SignOptions);
+
+      return { token, user: formatUser(result) };
+    } catch (err: any) {
+      // 唯一约束冲突（P2002）说明 biuId 或 username 重复，需要重试
+      if (err.code === 'P2002' && attempt < MAX_BIU_ID_RETRIES - 1) {
+        // 如果是 username 重复（非 biuId），直接抛出不重试
+        if (err.meta?.target?.includes('username')) {
+          throw new RegisterError('用户名已存在', 409);
+        }
+        continue; // biuId 冲突，下一轮重试
+      }
+      throw err;
+    }
+  }
+
+  // 重试耗尽
+  throw new RegisterError('注册失败，请稍后重试', 500);
 }
 
 export async function login(data: { account: string; password: string }) {
