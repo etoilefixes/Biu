@@ -104,12 +104,22 @@ export async function generateAiReply(conversationId: string, senderId: string) 
   // 获取全局配置
   const globalConfig = await getGlobalConfig();
 
-  // 决定使用的模型：角色有配置用角色的，否则用全局的
-  const useModel = role.model || globalConfig.chatModel;
-  const useReasoning = role.useReasoning && globalConfig.reasoningEnabled;
+  // 查找用户级 AI 参数覆盖
+  const userConfig = await prisma.aiRoleUserConfig.findUnique({
+    where: { roleId_userId: { roleId, userId: senderId } },
+  });
+
+  // 决定使用的模型：用户覆盖 > 角色配置 > 全局配置
+  const effectiveModel = userConfig?.model ?? role.model;
+  const effectiveReasoning = (userConfig?.useReasoning ?? role.useReasoning) && globalConfig.reasoningEnabled;
+  const effectiveTemperature = userConfig?.temperature ?? role.temperature ?? globalConfig.temperature;
+  const effectiveMaxTokens = userConfig?.maxTokens ?? role.maxTokens ?? globalConfig.maxTokens;
+
+  const useModel = effectiveModel || globalConfig.chatModel;
+  const useReasoning = effectiveReasoning;
   const finalModel = useReasoning ? (globalConfig.reasoningModel || useModel) : useModel;
-  const temperature = role.temperature ?? globalConfig.temperature;
-  const maxTokens = role.maxTokens ?? globalConfig.maxTokens;
+  const temperature = effectiveTemperature;
+  const maxTokens = effectiveMaxTokens;
 
   // 构建 system prompt
   const systemPrompt = buildSystemPrompt(role);

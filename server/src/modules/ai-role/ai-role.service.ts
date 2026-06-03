@@ -18,23 +18,12 @@ export async function listRoles(userId: string) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return roles.map(formatRole);
+  const formatted = roles.map(formatRole);
+  return mergeUserConfigs(formatted, userId);
 }
 
 export async function getRole(id: string, userId: string) {
-  const role = await prisma.aiRole.findUnique({
-    where: { id },
-    include: {
-      creator: {
-        select: { id: true, nickname: true, avatar: true },
-      },
-    },
-  });
-
-  if (!role) throw new Error('角色不存在');
-  if (role.visibility !== 'public' && role.userId !== userId) throw new Error('无权访问此角色');
-
-  return formatRole(role);
+  return getRoleWithUserConfig(id, userId);
 }
 
 export async function createRole(
@@ -103,36 +92,72 @@ export async function updateRole(
 ) {
   const existing = await prisma.aiRole.findUnique({ where: { id } });
   if (!existing) throw new Error('角色不存在');
-  if (existing.userId !== userId) throw new Error('无权修改此角色');
 
-  const role = await prisma.aiRole.update({
-    where: { id },
-    data: {
-      ...(data.name !== undefined && { name: data.name }),
-      ...(data.avatar !== undefined && { avatar: data.avatar }),
-      ...(data.description !== undefined && { description: data.description }),
-      ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
-      ...(data.speakingStyle !== undefined && { speakingStyle: data.speakingStyle }),
-      ...(data.forbiddenTopics !== undefined && { forbiddenTopics: data.forbiddenTopics }),
-      ...(data.greeting !== undefined && { greeting: data.greeting }),
-      ...(data.model !== undefined && { model: data.model }),
-      ...(data.useReasoning !== undefined && { useReasoning: data.useReasoning }),
-      ...(data.replyLength !== undefined && { replyLength: data.replyLength }),
-      ...(data.temperature !== undefined && { temperature: data.temperature }),
-      ...(data.maxTokens !== undefined && { maxTokens: data.maxTokens }),
-      ...(data.visibility !== undefined && { visibility: data.visibility }),
-    },
-    include: {
-      creator: {
-        select: { id: true, nickname: true, avatar: true },
+  const isOwner = existing.userId === userId;
+
+  // AI 参数字段：所有用户都可以修改（非创建者通过用户级覆盖表）
+  const aiParamFields = ['model', 'useReasoning', 'replyLength', 'temperature', 'maxTokens'] as const;
+  const hasAiParamData = aiParamFields.some((f) => data[f] !== undefined);
+
+  if (isOwner) {
+    // 创建者：直接更新角色记录
+    const role = await prisma.aiRole.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.avatar !== undefined && { avatar: data.avatar }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
+        ...(data.speakingStyle !== undefined && { speakingStyle: data.speakingStyle }),
+        ...(data.forbiddenTopics !== undefined && { forbiddenTopics: data.forbiddenTopics }),
+        ...(data.greeting !== undefined && { greeting: data.greeting }),
+        ...(data.model !== undefined && { model: data.model }),
+        ...(data.useReasoning !== undefined && { useReasoning: data.useReasoning }),
+        ...(data.replyLength !== undefined && { replyLength: data.replyLength }),
+        ...(data.temperature !== undefined && { temperature: data.temperature }),
+        ...(data.maxTokens !== undefined && { maxTokens: data.maxTokens }),
+        ...(data.visibility !== undefined && { visibility: data.visibility }),
       },
-    },
-  });
+      include: {
+        creator: {
+          select: { id: true, nickname: true, avatar: true },
+        },
+      },
+    });
 
-  // 同步更新虚拟用户的昵称和头像
-  await syncAiRoleUser(role);
+    await syncAiRoleUser(role);
+    return formatRole(role);
+  }
 
-  return formatRole(role);
+  // 非创建者：只能修改 AI 参数，通过用户级覆盖表
+  const nonAiParamFields = ['name', 'avatar', 'description', 'systemPrompt', 'speakingStyle', 'forbiddenTopics', 'greeting', 'visibility'] as const;
+  const hasNonAiParamData = nonAiParamFields.some((f) => data[f] !== undefined);
+  if (hasNonAiParamData) throw new Error('无权修改角色的基本信息，仅可调整 AI 参数');
+
+  if (hasAiParamData) {
+    await prisma.aiRoleUserConfig.upsert({
+      where: { roleId_userId: { roleId: id, userId } },
+      update: {
+        ...(data.model !== undefined && { model: data.model || null }),
+        ...(data.useReasoning !== undefined && { useReasoning: data.useReasoning }),
+        ...(data.replyLength !== undefined && { replyLength: data.replyLength }),
+        ...(data.temperature !== undefined && { temperature: data.temperature }),
+        ...(data.maxTokens !== undefined && { maxTokens: data.maxTokens }),
+      },
+      create: {
+        roleId: id,
+        userId,
+        model: data.model || null,
+        useReasoning: data.useReasoning ?? false,
+        replyLength: data.replyLength || 'medium',
+        temperature: data.temperature ?? 0.7,
+        maxTokens: data.maxTokens ?? 2000,
+      },
+    });
+  }
+
+  // 返回合并后的角色信息
+  return getRoleWithUserConfig(id, userId);
 }
 
 export async function deleteRole(id: string, userId: string) {
@@ -307,6 +332,62 @@ function formatRole(role: any) {
     createdAt: role.createdAt.toISOString(),
     updatedAt: role.updatedAt.toISOString(),
   };
+}
+
+/** 获取角色信息并合并用户级 AI 参数覆盖 */
+async function getRoleWithUserConfig(roleId: string, userId: string) {
+  const role = await prisma.aiRole.findUnique({
+    where: { id: roleId },
+    include: {
+      creator: {
+        select: { id: true, nickname: true, avatar: true },
+      },
+    },
+  });
+  if (!role) throw new Error('角色不存在');
+  if (role.visibility !== 'public' && role.userId !== userId) throw new Error('无权访问此角色');
+
+  const formatted = formatRole(role);
+
+  const userConfig = await prisma.aiRoleUserConfig.findUnique({
+    where: { roleId_userId: { roleId, userId } },
+  });
+
+  if (userConfig) {
+    formatted.model = userConfig.model;
+    formatted.useReasoning = userConfig.useReasoning;
+    formatted.replyLength = userConfig.replyLength;
+    formatted.temperature = userConfig.temperature;
+    formatted.maxTokens = userConfig.maxTokens;
+    (formatted as any).hasUserConfig = true;
+  }
+
+  return formatted;
+}
+
+/** 合并用户级覆盖到角色列表 */
+async function mergeUserConfigs(roles: any[], userId: string) {
+  const roleIds = roles.map((r) => r.id);
+  const configs = await prisma.aiRoleUserConfig.findMany({
+    where: { roleId: { in: roleIds }, userId },
+  });
+  const configMap = new Map(configs.map((c) => [c.roleId, c]));
+
+  return roles.map((role) => {
+    const config = configMap.get(role.id);
+    if (config) {
+      return {
+        ...role,
+        model: config.model,
+        useReasoning: config.useReasoning,
+        replyLength: config.replyLength,
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+        hasUserConfig: true,
+      };
+    }
+    return role;
+  });
 }
 
 /**

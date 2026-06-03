@@ -27,6 +27,7 @@ model User {
   receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
   badges        UserBadge[]
   aiRoles       AiRole[]
+  aiRoleConfigs AiRoleUserConfig[]
 
   @@map("users")
 }
@@ -155,9 +156,29 @@ model AiRole {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  creator User @relation(fields: [userId], references: [id])
+  creator     User              @relation(fields: [userId], references: [id])
+  userConfigs AiRoleUserConfig[]
 
   @@map("ai_roles")
+}
+
+model AiRoleUserConfig {
+  id           String  @id @default(uuid())
+  roleId       String  @map("role_id")
+  userId       String  @map("user_id")
+  model        String? @db.VarChar(100)
+  useReasoning Boolean @default(false) @map("use_reasoning")
+  replyLength  String  @default("medium") @map("reply_length") @db.VarChar(20)
+  temperature  Float   @default(0.7)
+  maxTokens    Int     @default(2000) @map("max_tokens")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  role AiRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, userId])
+  @@map("ai_role_user_configs")
 }
 
 model AiModelConfig {

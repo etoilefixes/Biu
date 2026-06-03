@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useChatStore } from '../store/chatStore';
+import { useAuthStore } from '../store/authStore';
 import Toast from './Toast';
 import GlassCard from './GlassCard';
 import AvatarWithBadge from './AvatarWithBadge';
@@ -38,6 +39,7 @@ export default function AiRoleModal({ onClose }: AiRoleModalProps) {
   const [showEditor, setShowEditor] = useState(false);
   const [editingRole, setEditingRole] = useState<AiRole | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+  const currentUser = useAuthStore((s) => s.user);
   const addConversationOptimistic = useChatStore((s) => s.addConversationOptimistic);
   const replaceTempConversation = useChatStore((s) => s.replaceTempConversation);
   const selectConversation = useChatStore((s) => s.selectConversation);
@@ -200,15 +202,18 @@ export default function AiRoleModal({ onClose }: AiRoleModalProps) {
                               <button
                                 onClick={(e) => { e.stopPropagation(); setEditingRole(role); setShowEditor(true); }}
                                 className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-biu-primary hover:bg-white/5 transition"
+                                title={role.userId === currentUser?.id ? '编辑角色' : '调整 AI 参数'}
                               >
                                 <IconEdit size={12} />
                               </button>
+                              {role.userId === currentUser?.id && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDeleteRole(role.id); }}
                                 className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-biu-accent hover:bg-white/5 transition"
                               >
                                 <IconTrash size={12} />
                               </button>
+                              )}
                             </div>
                           </div>
                           {role.description && (
@@ -241,6 +246,8 @@ function AiRoleEditor({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const currentUser = useAuthStore((s) => s.user);
+  const isOwner = !role || role.userId === currentUser?.id;
   const [name, setName] = useState(role?.name || '');
   const [avatar, setAvatar] = useState(role?.avatar || '');
   const [description, setDescription] = useState(role?.description || '');
@@ -265,21 +272,29 @@ function AiRoleEditor({
 
     try {
       setSaving(true);
-      const data = {
-        name: name.trim(),
-        avatar: avatar.trim() || null,
-        description: description.trim() || null,
-        systemPrompt: systemPrompt.trim() || null,
-        speakingStyle: speakingStyle.trim() || null,
-        forbiddenTopics: forbiddenTopics.trim() || null,
-        greeting: greeting.trim() || null,
-        model: model.trim() || null,
-        useReasoning,
-        replyLength,
-        temperature,
-        maxTokens,
-        visibility,
-      };
+      const data = isOwner
+        ? {
+            name: name.trim(),
+            avatar: avatar.trim() || null,
+            description: description.trim() || null,
+            systemPrompt: systemPrompt.trim() || null,
+            speakingStyle: speakingStyle.trim() || null,
+            forbiddenTopics: forbiddenTopics.trim() || null,
+            greeting: greeting.trim() || null,
+            model: model.trim() || null,
+            useReasoning,
+            replyLength,
+            temperature,
+            maxTokens,
+            visibility,
+          }
+        : {
+            model: model.trim() || null,
+            useReasoning,
+            replyLength,
+            temperature,
+            maxTokens,
+          };
 
       if (role) {
         await api.put(`/ai-roles/${role.id}`, data);
@@ -300,7 +315,8 @@ function AiRoleEditor({
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="space-y-5">
-        {/* 基本信息 */}
+        {/* 基本信息 - 仅创建者可编辑 */}
+        {isOwner && (
         <div>
           <h3 className="text-white text-sm font-display font-600 mb-3">基本信息</h3>
           <div className="space-y-3">
@@ -336,8 +352,10 @@ function AiRoleEditor({
             </div>
           </div>
         </div>
+        )}
 
-        {/* 角色设定 */}
+        {/* 角色设定 - 仅创建者可编辑 */}
+        {isOwner && (
         <div>
           <h3 className="text-white text-sm font-display font-600 mb-3">角色设定</h3>
           <div className="space-y-3">
@@ -383,6 +401,7 @@ function AiRoleEditor({
             </div>
           </div>
         </div>
+        )}
 
         {/* 参数设置 */}
         <div>
@@ -462,6 +481,7 @@ function AiRoleEditor({
                 className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body"
               />
             </div>
+            {isOwner && (
             <div>
               <label className="text-gray-500 text-xs font-medium mb-1 block">可见性</label>
               <div className="flex gap-2">
@@ -484,12 +504,16 @@ function AiRoleEditor({
               </div>
               <p className="text-gray-600 text-[11px] font-body mt-0.5">公开角色所有用户可见，私有仅自己可见</p>
             </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Footer */}
       <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/5">
+        {!isOwner && role && (
+          <p className="flex-1 text-gray-500 text-xs font-body">仅可调整 AI 参数，角色设定由创建者维护</p>
+        )}
         <button
           onClick={onCancel}
           className="px-4 py-2 rounded-lg bg-white/5 text-gray-400 text-sm font-body hover:bg-white/10 transition"
@@ -498,10 +522,10 @@ function AiRoleEditor({
         </button>
         <button
           onClick={handleSave}
-          disabled={saving || !name.trim()}
+          disabled={saving || (isOwner && !name.trim())}
           className="px-4 py-2 rounded-lg bg-biu-primary text-biu-dark text-sm font-body font-500 hover:bg-biu-primary-dim transition disabled:opacity-30"
         >
-          {saving ? '保存中...' : role ? '更新角色' : '创建角色'}
+          {saving ? '保存中...' : isOwner ? (role ? '更新角色' : '创建角色') : '保存参数'}
         </button>
       </div>
     </div>
