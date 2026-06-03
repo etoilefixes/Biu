@@ -27,14 +27,13 @@ export function registerChatHandlers(io: Server, socket: Socket) {
 
         if (memberId !== socket.data.userId) {
           const unreadKey = `unread:${memberId}:${data.conversationId}`;
-          const current = parseInt(await redis.get(unreadKey) || '0', 10);
-          await redis.set(unreadKey, String(current + 1));
+          const count = await redis.incr(unreadKey);
 
           const memberSocketId = await getSocketId(memberId);
           if (memberSocketId) {
             io.to(memberSocketId).emit('chat:unread', {
               conversationId: data.conversationId,
-              count: current + 1,
+              count,
             });
           }
         }
