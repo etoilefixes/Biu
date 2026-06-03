@@ -1,5 +1,6 @@
 import { prisma } from '../../config/database';
 import { getIo } from '../../socket';
+import { ReasoningStreamParser, AiStreamChunk } from './reasoning-parser';
 
 const CONTEXT_MESSAGE_LIMIT = 20;
 
@@ -122,78 +123,323 @@ export async function generateAiReply(conversationId: string, senderId: string) 
   }
 
   try {
-    const reply = await callLLM(globalConfig, finalModel, llmMessages, temperature, maxTokens);
-
-    // 保存 AI 回复
-    const message = await prisma.message.create({
-      data: {
-        conversationId,
-        senderId: aiUser.id,
-        content: reply,
-        type: 'text',
-      },
-      include: {
-        sender: {
-          select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
-        },
-      },
-    });
-
-    const formattedMessage = {
-      id: message.id,
-      conversationId: message.conversationId,
-      senderId: message.senderId,
-      content: message.content,
-      type: message.type as 'text',
-      cardType: message.cardType,
-      cardData: message.cardData ? JSON.parse(message.cardData) : null,
-      mentions: message.mentions ? JSON.parse(message.mentions) : null,
-      mentionsAll: message.mentionsAll,
-      createdAt: message.createdAt.toISOString(),
-      sender: {
-        ...message.sender,
-        status: message.sender.status as 'online' | 'offline' | 'away',
-        isSystem: message.sender.isSystem || false,
-        badges: message.sender.badges.map((ub: any) => ({
-          type: ub.badge.type,
-          label: ub.badge.label,
-          icon: ub.badge.icon,
-          color: ub.badge.color,
-        })),
-      },
-    };
-
-    // WebSocket 推送
-    const io = getIo();
-    const members = await prisma.conversationMember.findMany({
-      where: { conversationId },
-      select: { userId: true },
-    });
-
-    const { redis } = await import('../../config/redis');
-    for (const member of members) {
-      const socketId = await redis.get(`user:socket:${member.userId}`);
-      if (socketId) {
-        io.to(socketId).emit('chat:message', formattedMessage);
-      }
-
-      if (member.userId !== aiUser.id) {
-        const unreadKey = `unread:${member.userId}:${conversationId}`;
-        const current = parseInt(await redis.get(unreadKey) || '0', 10);
-        await redis.set(unreadKey, String(current + 1));
-
-        const memberSocketId = await redis.get(`user:socket:${member.userId}`);
-        if (memberSocketId) {
-          io.to(memberSocketId).emit('chat:unread', {
-            conversationId,
-            count: current + 1,
-          });
-        }
-      }
+    if (globalConfig.streamingEnabled) {
+      await streamLLMAndReply(globalConfig, finalModel, llmMessages, temperature, maxTokens, conversationId, aiUser.id, useReasoning);
+    } else {
+      await nonStreamLLMAndReply(globalConfig, finalModel, llmMessages, temperature, maxTokens, conversationId, aiUser.id, useReasoning);
     }
   } catch (err) {
     console.error('[AI Reply] Failed to generate reply:', err);
   }
+}
+
+/**
+ * 流式调用 LLM 并逐步推送 + 最终写入数据库
+ */
+async function streamLLMAndReply(
+  config: ModelConfig,
+  model: string,
+  messages: LLMMessage[],
+  temperature: number,
+  maxTokens: number,
+  conversationId: string,
+  aiUserId: string,
+  useReasoning: boolean,
+) {
+  if (!config.apiKey && config.provider !== 'ollama') {
+    await emitErrorAndSaveFallback(conversationId, aiUserId, 'AI 服务未配置，请联系管理员设置 API Key');
+    return;
+  }
+
+  const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  }
+
+  const body: any = {
+    model,
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+    stream: true,
+  };
+
+  const reasoningMode = useReasoning ? config.reasoningMode : 'none';
+  const parser = new ReasoningStreamParser(reasoningMode);
+
+  const io = getIo();
+  const { redis } = await import('../../config/redis');
+
+  // 获取会话成员的 socket ID
+  const members = await prisma.conversationMember.findMany({
+    where: { conversationId },
+    select: { userId: true },
+  });
+  const memberSocketIds: Map<string, string | null> = new Map();
+  for (const member of members) {
+    const socketId = await redis.get(`user:socket:${member.userId}`);
+    memberSocketIds.set(member.userId, socketId);
+  }
+
+  // 发送流式开始事件
+  for (const [, socketId] of memberSocketIds) {
+    if (socketId) {
+      io.to(socketId).emit('chat:stream', {
+        conversationId,
+        type: 'start',
+        aiUserId,
+      });
+    }
+  }
+
+  let contentBuffer = '';
+  let reasoningBuffer = '';
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[LLM Stream] API error:', response.status, errorText);
+      await emitErrorAndSaveFallback(conversationId, aiUserId, 'AI 服务暂时不可用');
+      return;
+    }
+
+    if (!response.body) {
+      await emitErrorAndSaveFallback(conversationId, aiUserId, 'AI 服务返回异常');
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let lineBuffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+        const data = trimmed.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const chunk = JSON.parse(data);
+          const choice = chunk.choices?.[0];
+
+          if (!choice) continue;
+
+          // 检查是否结束
+          if (choice.finish_reason) {
+            continue;
+          }
+
+          const parsedChunks = parser.feed(chunk);
+
+          for (const pc of parsedChunks) {
+            if (pc.type === 'reasoning' && pc.delta) {
+              reasoningBuffer += pc.delta;
+
+              // 根据配置决定是否推送推理内容
+              if (config.reasoningDisplay !== 'hidden') {
+                for (const [, socketId] of memberSocketIds) {
+                  if (socketId) {
+                    io.to(socketId).emit('chat:stream', {
+                      conversationId,
+                      type: 'reasoning',
+                      delta: pc.delta,
+                    });
+                  }
+                }
+              }
+            } else if (pc.type === 'content' && pc.delta) {
+              contentBuffer += pc.delta;
+
+              // 推送内容增量
+              for (const [, socketId] of memberSocketIds) {
+                if (socketId) {
+                  io.to(socketId).emit('chat:stream', {
+                    conversationId,
+                    type: 'content',
+                    delta: pc.delta,
+                  });
+                }
+              }
+            }
+          }
+        } catch {
+          // 解析失败的 chunk 忽略
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[LLM Stream] Error:', err);
+    if (!contentBuffer) {
+      await emitErrorAndSaveFallback(conversationId, aiUserId, 'AI 服务连接失败');
+      return;
+    }
+  }
+
+  // 流结束，发送 done 事件
+  for (const [, socketId] of memberSocketIds) {
+    if (socketId) {
+      io.to(socketId).emit('chat:stream', {
+        conversationId,
+        type: 'done',
+        reasoning: reasoningBuffer || undefined,
+        content: contentBuffer || undefined,
+      });
+    }
+  }
+
+  // 保存最终回复到数据库
+  const finalContent = contentBuffer || '（AI 暂时无法回复）';
+  await saveAndBroadcastMessage(conversationId, aiUserId, finalContent, reasoningBuffer, config.reasoningDisplay);
+}
+
+/**
+ * 非流式调用 LLM（fallback）
+ */
+async function nonStreamLLMAndReply(
+  config: ModelConfig,
+  model: string,
+  messages: LLMMessage[],
+  temperature: number,
+  maxTokens: number,
+  conversationId: string,
+  aiUserId: string,
+  useReasoning: boolean,
+) {
+  const reply = await callLLM(config, model, messages, temperature, maxTokens, useReasoning);
+  await saveAndBroadcastMessage(conversationId, aiUserId, reply, '', 'hidden');
+}
+
+/**
+ * 保存 AI 回复消息并广播
+ */
+async function saveAndBroadcastMessage(
+  conversationId: string,
+  aiUserId: string,
+  content: string,
+  reasoningContent: string,
+  reasoningDisplay: string,
+) {
+  // 如果配置为可见，将思考内容附加到消息中（用特殊标记）
+  let finalContent = content;
+  if (reasoningContent && reasoningDisplay !== 'hidden') {
+    // 使用特殊标记存储思考内容，前端可以解析
+    finalContent = content;
+    // 思考内容单独存储在 cardData 中
+  }
+
+  const message = await prisma.message.create({
+    data: {
+      conversationId,
+      senderId: aiUserId,
+      content: finalContent,
+      type: 'text',
+      // 将思考内容存储在 cardData 中
+      cardType: reasoningContent && reasoningDisplay !== 'hidden' ? 'ai_reasoning' : null,
+      cardData: reasoningContent && reasoningDisplay !== 'hidden'
+        ? JSON.stringify({ reasoning: reasoningContent })
+        : null,
+    },
+    include: {
+      sender: {
+        select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
+      },
+    },
+  });
+
+  const formattedMessage = {
+    id: message.id,
+    conversationId: message.conversationId,
+    senderId: message.senderId,
+    content: message.content,
+    type: message.type as 'text',
+    cardType: message.cardType,
+    cardData: message.cardData ? JSON.parse(message.cardData) : null,
+    mentions: message.mentions ? JSON.parse(message.mentions) : null,
+    mentionsAll: message.mentionsAll,
+    createdAt: message.createdAt.toISOString(),
+    sender: {
+      ...message.sender,
+      status: message.sender.status as 'online' | 'offline' | 'away',
+      isSystem: message.sender.isSystem || false,
+      badges: message.sender.badges.map((ub: any) => ({
+        type: ub.badge.type,
+        label: ub.badge.label,
+        icon: ub.badge.icon,
+        color: ub.badge.color,
+      })),
+    },
+  };
+
+  // WebSocket 推送完整消息
+  const io = getIo();
+  const members = await prisma.conversationMember.findMany({
+    where: { conversationId },
+    select: { userId: true },
+  });
+
+  const { redis } = await import('../../config/redis');
+  for (const member of members) {
+    const socketId = await redis.get(`user:socket:${member.userId}`);
+    if (socketId) {
+      io.to(socketId).emit('chat:message', formattedMessage);
+    }
+
+    if (member.userId !== aiUserId) {
+      const unreadKey = `unread:${member.userId}:${conversationId}`;
+      const current = parseInt(await redis.get(unreadKey) || '0', 10);
+      await redis.set(unreadKey, String(current + 1));
+
+      const memberSocketId = await redis.get(`user:socket:${member.userId}`);
+      if (memberSocketId) {
+        io.to(memberSocketId).emit('chat:unread', {
+          conversationId,
+          count: current + 1,
+        });
+      }
+    }
+  }
+}
+
+/**
+ * 发送错误事件并保存 fallback 消息
+ */
+async function emitErrorAndSaveFallback(conversationId: string, aiUserId: string, errorMsg: string) {
+  const io = getIo();
+  const { redis } = await import('../../config/redis');
+
+  const members = await prisma.conversationMember.findMany({
+    where: { conversationId },
+    select: { userId: true },
+  });
+
+  for (const member of members) {
+    const socketId = await redis.get(`user:socket:${member.userId}`);
+    if (socketId) {
+      io.to(socketId).emit('chat:stream', {
+        conversationId,
+        type: 'error',
+        message: errorMsg,
+      });
+    }
+  }
+
+  await saveAndBroadcastMessage(conversationId, aiUserId, `（${errorMsg}）`, '', 'hidden');
 }
 
 function buildSystemPrompt(role: {
@@ -237,7 +483,7 @@ function buildSystemPrompt(role: {
 }
 
 /**
- * AI Provider 适配层 — OpenAI Compatible 接口
+ * AI Provider 适配层 — OpenAI Compatible 接口（非流式）
  * 支持 DeepSeek、通义千问、Ollama 等所有兼容 OpenAI 格式的服务
  */
 async function callLLM(
@@ -245,7 +491,8 @@ async function callLLM(
   model: string,
   messages: LLMMessage[],
   temperature: number = 0.7,
-  maxTokens: number = 2000
+  maxTokens: number = 2000,
+  useReasoning: boolean = false,
 ): Promise<string> {
   if (!config.apiKey && config.provider !== 'ollama') {
     return '（AI 服务未配置，请联系管理员设置 API Key）';
@@ -268,12 +515,6 @@ async function callLLM(
     max_tokens: maxTokens,
   };
 
-  // 思考模型适配
-  if (config.reasoningEnabled && config.reasoningMode === 'field') {
-    // DeepSeek 等支持 reasoning_content 字段
-    // 不需要额外参数，模型自动返回
-  }
-
   const response = await fetch(url, {
     method: 'POST',
     headers,
@@ -292,13 +533,13 @@ async function callLLM(
   const choice = data.choices?.[0];
   if (!choice) throw new Error('LLM 返回数据格式异常');
 
-  // 处理思考模型的 reasoning_content
-  const reasoningContent = choice.message?.reasoning_content;
   const mainContent = choice.message?.content || '（AI 暂时无法回复）';
 
-  // 根据配置决定是否附加思考内容
-  if (reasoningContent && config.reasoningDisplay === 'visible') {
-    return `${mainContent}\n\n---\n💭 思考过程：${reasoningContent}`;
+  // 非流式模式下，处理 think-tag 推理内容
+  if (useReasoning && config.reasoningMode === 'think-tag') {
+    const thinkTagRegex = /<think[^>]*>([\s\S]*?)<\/think>/g;
+    const cleaned = mainContent.replace(thinkTagRegex, '').trim();
+    return cleaned || mainContent;
   }
 
   return mainContent;

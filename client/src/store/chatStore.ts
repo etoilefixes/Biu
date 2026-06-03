@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Conversation, Message, LastMessage } from '@biu/shared';
 import api from '../services/api';
 import { socketService } from '../services/socket';
+import { useAuthStore } from './authStore';
 
 interface UnreadMap {
   [conversationId: string]: number;
@@ -22,6 +23,8 @@ interface ChatState {
   typingUsers: Map<string, string>;
   unreadMap: UnreadMap;
   totalUnread: number;
+  lastReadMessageId: string | null;
+  streamingMessages: Map<string, { content: string; reasoning: string; isStreaming: boolean }>;
   loadConversations: () => Promise<void>;
   selectConversation: (conversation: Conversation | null) => Promise<void>;
   sendMessage: (content: string, type?: string, senderId?: string) => void;
@@ -38,6 +41,7 @@ interface ChatState {
   deleteConversation: (conversationId: string) => void;
   setTyping: (conversationId: string, userId: string) => void;
   clearTyping: (conversationId: string) => void;
+  handleStreamEvent: (data: { conversationId: string; type: string; delta?: string; aiUserId?: string; reasoning?: string; content?: string; message?: string }) => void;
   reset: () => void;
   cleanupStaleSending: () => void;
 }
@@ -76,6 +80,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   typingUsers: new Map(),
   unreadMap: {},
   totalUnread: 0,
+  lastReadMessageId: null,
+  streamingMessages: new Map(),
 
   loadConversations: async () => {
     const res: any = await api.get('/conversations');
@@ -87,8 +93,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         unreadMap[c.id] = c.unreadCount;
       }
     });
+    const freshCurrent = currentId
+      ? conversations.find((c) => c.id === currentId) ?? null
+      : null;
     set({
       conversations: sortConversations(conversations),
+      currentConversation: freshCurrent,
       unreadMap,
       totalUnread: calcTotalUnread(unreadMap),
     });
@@ -96,31 +106,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   selectConversation: async (conversation) => {
     if (!conversation) {
-      set({ currentConversation: null, messages: [] });
+      set({ currentConversation: null, messages: [], lastReadMessageId: null });
       return;
     }
 
     const { unreadMap } = get();
     const hasUnread = unreadMap[conversation.id] && unreadMap[conversation.id] > 0;
 
+    // Clear mentionType for the selected conversation
+    const conversations = get().conversations.map((c) =>
+      c.id === conversation.id ? { ...c, mentionType: null } : c
+    );
+    const cleanConversation = { ...conversation, mentionType: null };
+
     if (hasUnread) {
       const newMap = { ...unreadMap };
       delete newMap[conversation.id];
       set({
-        currentConversation: conversation,
+        conversations,
+        currentConversation: cleanConversation,
         messages: [],
+        lastReadMessageId: null,
         unreadMap: newMap,
         totalUnread: calcTotalUnread(newMap),
       });
     } else {
-      set({ currentConversation: conversation, messages: [] });
+      set({ conversations, currentConversation: cleanConversation, messages: [], lastReadMessageId: null });
     }
 
+    // Fetch messages FIRST — the server returns lastReadAt before mark-read
+    const res: any = await api.get(`/messages/${conversation.id}`);
+
+    // Defensive: handle both new format { messages, lastReadAt } and legacy array
+    const fetchedMessages: Message[] = Array.isArray(res.data) ? res.data : (res.data?.messages ?? []);
+    const lastReadAt: string | null = Array.isArray(res.data) ? null : (res.data?.lastReadAt ?? null);
+
+    // Compute the divider anchor: first message after lastReadAt
+    let lastReadMessageId: string | null = null;
+    if (lastReadAt && fetchedMessages.length > 0) {
+      const readTime = new Date(lastReadAt).getTime();
+      const firstUnread = fetchedMessages.find(
+        (m: Message) => new Date(m.createdAt).getTime() > readTime
+      );
+      if (firstUnread) {
+        lastReadMessageId = firstUnread.id;
+      }
+    }
+
+    set({ messages: fetchedMessages, lastReadMessageId });
+
+    // Now mark as read (after messages are fetched with the anchor)
     api.put(`/conversations/${conversation.id}/read`).catch(() => {});
     socketService.markRead(conversation.id);
-
-    const res: any = await api.get(`/messages/${conversation.id}`);
-    set({ messages: res.data });
   },
 
   sendMessage: (content, type = 'text', senderId) => {
@@ -194,25 +231,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const exists = messages.some((m) => m.id === message.id);
     if (exists) return;
 
-    const optimisticIndex = messages.findIndex(
-      (m) =>
-        (m as any)._status === 'sending' &&
-        m.conversationId === message.conversationId &&
-        m.content === message.content &&
-        ((m as any)._tempSender === message.senderId ||
-          m.senderId === message.senderId ||
-          !m.senderId)
+    // 检查是否是流式占位消息的替换
+    const streamIndex = messages.findIndex(
+      (m) => m.id === `stream_${message.conversationId}`
     );
 
-    if (optimisticIndex !== -1) {
-      const matchedTempId = messages[optimisticIndex].id;
-      clearPendingAck(matchedTempId);
-
+    if (streamIndex !== -1) {
       set({
-        messages: messages.map((m, i) => (i === optimisticIndex ? message : m)),
+        messages: messages.map((m, i) => (i === streamIndex ? message : m)),
       });
+      // 清理流式状态
+      const newStreaming = new Map(get().streamingMessages);
+      newStreaming.delete(message.conversationId);
+      set({ streamingMessages: newStreaming });
     } else {
-      set((state) => ({ messages: [...state.messages, message] }));
+      const optimisticIndex = messages.findIndex(
+        (m) =>
+          (m as any)._status === 'sending' &&
+          m.conversationId === message.conversationId &&
+          m.content === message.content &&
+          ((m as any)._tempSender === message.senderId ||
+            m.senderId === message.senderId ||
+            !m.senderId)
+      );
+
+      if (optimisticIndex !== -1) {
+        const matchedTempId = messages[optimisticIndex].id;
+        clearPendingAck(matchedTempId);
+
+        set({
+          messages: messages.map((m, i) => (i === optimisticIndex ? message : m)),
+        });
+      } else {
+        // Only add to messages array if it belongs to the current conversation
+        const currentConvId = get().currentConversation?.id;
+        if (message.conversationId === currentConvId) {
+          set((state) => ({ messages: [...state.messages, message] }));
+        }
+      }
     }
 
     get().updateConversationLastMessage(message.conversationId, message);
@@ -243,6 +299,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       conversations: [conversation, ...state.conversations],
       currentConversation: conversation,
+      messages: [],
     }));
   },
 
@@ -260,6 +317,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   updateConversationLastMessage: (conversationId, message) => {
     set((state) => {
+      const currentUserId = useAuthStore.getState().user?.id;
+      const msgMentions = message.mentions ?? null;
+      const msgMentionsAll = message.mentionsAll ?? false;
+      let mentionType: 'me' | 'all' | null | undefined = undefined; // undefined = don't update
+      if (msgMentionsAll) {
+        mentionType = 'all';
+      } else if (msgMentions && currentUserId && msgMentions.includes(currentUserId)) {
+        mentionType = 'me';
+      }
+
       const conversations = state.conversations.map((c) => {
         if (c.id !== conversationId) return c;
         const lastMessage: LastMessage = {
@@ -268,8 +335,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
           senderId: message.senderId,
           senderNickname: (message as any).sender?.nickname,
           createdAt: message.createdAt,
+          mentions: msgMentions,
+          mentionsAll: msgMentionsAll,
         };
-        return { ...c, lastMessage };
+        const updated = { ...c, lastMessage };
+        if (mentionType !== undefined) {
+          (updated as any).mentionType = mentionType;
+        }
+        return updated;
       });
 
       return { conversations: sortConversations(conversations) };
@@ -328,6 +401,106 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
+  handleStreamEvent: (data) => {
+    const { conversationId, type } = data;
+    const currentConvId = get().currentConversation?.id;
+
+    if (type === 'start') {
+      // 流式开始：创建占位流式消息
+      const newStreaming = new Map(get().streamingMessages);
+      newStreaming.set(conversationId, { content: '', reasoning: '', isStreaming: true });
+      set({ streamingMessages: newStreaming });
+
+      // 在当前会话的消息列表中添加一个占位消息
+      if (conversationId === currentConvId && data.aiUserId) {
+        const streamMsg: Message = {
+          id: `stream_${conversationId}`,
+          conversationId,
+          senderId: data.aiUserId,
+          content: '',
+          type: 'text',
+          createdAt: new Date().toISOString(),
+          _isStreaming: true,
+        } as any;
+        set((state) => {
+          const exists = state.messages.some((m) => m.id === `stream_${conversationId}`);
+          if (exists) return state;
+          return { messages: [...state.messages, streamMsg] };
+        });
+      }
+    } else if (type === 'content' && data.delta) {
+      // 内容增量
+      const newStreaming = new Map(get().streamingMessages);
+      const current = newStreaming.get(conversationId) || { content: '', reasoning: '', isStreaming: true };
+      current.content += data.delta;
+      newStreaming.set(conversationId, current);
+      set({ streamingMessages: newStreaming });
+
+      // 更新占位消息的内容
+      if (conversationId === currentConvId) {
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === `stream_${conversationId}`
+              ? { ...m, content: current.content }
+              : m
+          ),
+        }));
+      }
+    } else if (type === 'reasoning' && data.delta) {
+      // 推理增量
+      const newStreaming = new Map(get().streamingMessages);
+      const current = newStreaming.get(conversationId) || { content: '', reasoning: '', isStreaming: true };
+      current.reasoning += data.delta;
+      newStreaming.set(conversationId, current);
+      set({ streamingMessages: newStreaming });
+
+      // 更新占位消息的推理内容
+      if (conversationId === currentConvId) {
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === `stream_${conversationId}`
+              ? { ...m, _streamingReasoning: current.reasoning } as any
+              : m
+          ),
+        }));
+      }
+    } else if (type === 'done') {
+      // 流式结束：移除流式状态，等待 chat:message 替换占位消息
+      const newStreaming = new Map(get().streamingMessages);
+      const streamData = newStreaming.get(conversationId);
+      newStreaming.delete(conversationId);
+      set({ streamingMessages: newStreaming });
+
+      // 如果有最终内容，更新占位消息
+      if (conversationId === currentConvId) {
+        const finalContent = data.content || streamData?.content || '';
+        const finalReasoning = data.reasoning || streamData?.reasoning || '';
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === `stream_${conversationId}`
+              ? { ...m, content: finalContent, _isStreaming: false, _streamingReasoning: finalReasoning } as any
+              : m
+          ),
+        }));
+      }
+    } else if (type === 'error') {
+      // 流式错误
+      const newStreaming = new Map(get().streamingMessages);
+      newStreaming.delete(conversationId);
+      set({ streamingMessages: newStreaming });
+
+      if (conversationId === currentConvId) {
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === `stream_${conversationId}`
+              ? { ...m, content: data.message || 'AI 回复失败', _isStreaming: false } as any
+              : m
+          ),
+        }));
+      }
+    }
+  },
+
   reset: () => {
     pendingAcks.forEach((pending) => clearTimeout(pending.timer));
     pendingAcks.clear();
@@ -338,6 +511,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       typingUsers: new Map(),
       unreadMap: {},
       totalUnread: 0,
+      lastReadMessageId: null,
+      streamingMessages: new Map(),
     });
   },
 

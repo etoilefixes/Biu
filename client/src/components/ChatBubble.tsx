@@ -4,6 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import UserBadge from './UserBadge';
 import AvatarWithBadge from './AvatarWithBadge';
+import { renderRich } from '../utils/mention';
+import { formatExactTime } from '../utils/time';
 
 interface Props {
   message: Message;
@@ -22,6 +24,18 @@ function CardMessage({ cardType, cardData }: { cardType?: string | null; cardDat
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">👋</span>
           <span className="text-biu-primary font-display font-600 text-sm">{cardData.title || '欢迎'}</span>
+        </div>
+        <p className="text-gray-300 text-xs font-body leading-relaxed">{cardData.body || ''}</p>
+      </div>
+    );
+  }
+
+  if (cardType === 'friend_welcome') {
+    return (
+      <div className="rounded-xl bg-gradient-to-br from-biu-accent/10 to-biu-accent/5 border border-biu-accent/20 p-4 min-w-[200px]">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-lg">🤝</span>
+          <span className="text-biu-accent font-display font-600 text-sm">{cardData.title || '新朋友'}</span>
         </div>
         <p className="text-gray-300 text-xs font-body leading-relaxed">{cardData.body || ''}</p>
       </div>
@@ -68,50 +82,49 @@ function CardMessage({ cardType, cardData }: { cardType?: string | null; cardDat
   );
 }
 
+/** AI 思考内容折叠组件 */
+function ReasoningBlock({ reasoning }: { reasoning: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!reasoning) return null;
+
+  return (
+    <div className="mb-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-gray-500 hover:text-gray-300 text-xs font-body transition-colors"
+      >
+        <svg
+          className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        <span>思考过程</span>
+      </button>
+      {expanded && (
+        <div className="mt-1.5 pl-4 border-l-2 border-gray-700 text-gray-500 text-xs font-body leading-relaxed whitespace-pre-wrap">
+          {reasoning}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const status = (message as any)._status;
   const isCard = message.type === 'card';
   const isSystem = message.sender?.isSystem;
+  const isStreaming = (message as any)._isStreaming;
+  const streamingReasoning = (message as any)._streamingReasoning;
+  const aiReasoning = message.cardType === 'ai_reasoning' ? (message.cardData as any)?.reasoning : null;
 
-  // 解析 @ 提及
-  const renderContent = useMemo(() => {
-    const parts: JSX.Element[] = [];
-    let lastIndex = 0;
-    const regex = /\[at:([^\]]+)\]/g;
-    let match;
-    
-    while ((match = regex.exec(message.content)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(<span key={`text-${match.index}`}>{message.content.slice(lastIndex, match.index)}</span>);
-      }
-      
-      const userId = match[1];
-      let displayName = '@用户';
-      
-      if (userId === 'all') {
-        displayName = '@全体成员';
-      }
-      
-      parts.push(
-        <span 
-          key={`mention-${match.index}`} 
-          style={{ color: '#ef4444', fontWeight: 600 }}
-        >
-          [{displayName}]
-        </span>
-      );
-      
-      lastIndex = match.index + match[0].length;
-    }
-    
-    if (lastIndex < message.content.length) {
-      parts.push(<span key="text-end">{message.content.slice(lastIndex)}</span>);
-    }
-    
-    return parts.length > 0 ? parts : message.content;
-  }, [message.content]);
+  // 解析 @ 提及（富文本渲染）
+  const renderedContent = useMemo(() => renderRich(message.content), [message.content]);
 
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -139,7 +152,7 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
   return (
     <>
       <div
-        className={`flex ${isSelf ? 'justify-end' : 'justify-start'} mb-4 animate-message-in`}
+        className={`group flex ${isSelf ? 'justify-end' : 'justify-start'} mb-4 animate-message-in`}
         onContextMenu={handleContextMenu}
       >
         {!isSelf && (
@@ -162,21 +175,35 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
             <CardMessage cardType={message.cardType} cardData={message.cardData} />
           ) : (
             <div className={`px-3.5 py-2.5 ${isSelf ? 'bubble-self' : 'bubble-other'} ${status === 'failed' ? 'opacity-60' : ''}`}>
+              {/* 思考内容（流式中或持久化） */}
+              {(streamingReasoning || aiReasoning) && (
+                <ReasoningBlock reasoning={streamingReasoning || aiReasoning} />
+              )}
               <div className="text-sm break-words font-body leading-relaxed chat-markdown">
-                {typeof renderContent === 'string' ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderContent}</ReactMarkdown>
+                {renderedContent.length === 1 && typeof renderedContent[0] === 'string' ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderedContent[0]}</ReactMarkdown>
                 ) : (
-                  renderContent
+                  renderedContent
+                )}
+                {/* 流式打字光标 */}
+                {isStreaming && (
+                  <span className="inline-block w-1.5 h-4 ml-0.5 bg-biu-primary/70 animate-pulse-subtle align-text-bottom rounded-sm" />
                 )}
               </div>
             </div>
           )}
           <div className="flex items-center gap-2 mt-1 px-1">
-            <p className="text-gray-600 text-[11px] font-body">
+            <span
+              className="text-gray-600 text-[11px] font-body opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              title={formatExactTime(message.createdAt)}
+            >
               {new Date(message.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-            </p>
+            </span>
             {status === 'sending' && (
               <span className="text-gray-500 text-[11px] animate-pulse-subtle font-body">发送中</span>
+            )}
+            {isStreaming && (
+              <span className="text-biu-primary/60 text-[11px] animate-pulse-subtle font-body">AI 思考中</span>
             )}
             {status === 'failed' && (
               <button

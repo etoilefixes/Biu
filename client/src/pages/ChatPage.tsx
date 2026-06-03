@@ -106,6 +106,9 @@ export default function ChatPage() {
     });
     socketService.onChatAck((_data) => {
     });
+    socketService.onChatStream((data) => {
+      useChatStore.getState().handleStreamEvent(data);
+    });
     useChatStore.getState().cleanupStaleSending();
     return () => {
       socketService.offMessage();
@@ -113,6 +116,7 @@ export default function ChatPage() {
       socketService.offUnread();
       socketService.offChatError();
       socketService.offChatAck();
+      socketService.offChatStream();
     };
   }, []);
 

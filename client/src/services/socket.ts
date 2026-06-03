@@ -87,6 +87,11 @@ class SocketService {
     this.socket?.on('chat:ack', callback);
   }
 
+  onChatStream(callback: (data: { conversationId: string; type: string; delta?: string; aiUserId?: string; reasoning?: string; content?: string; message?: string }) => void) {
+    this.socket?.off('chat:stream');
+    this.socket?.on('chat:stream', callback);
+  }
+
   offMessage() {
     this.socket?.off('chat:message');
   }
@@ -109,6 +114,10 @@ class SocketService {
 
   offChatAck() {
     this.socket?.off('chat:ack');
+  }
+
+  offChatStream() {
+    this.socket?.off('chat:stream');
   }
 
   sendMessage(data: { conversationId: string; content: string; type: string }) {
