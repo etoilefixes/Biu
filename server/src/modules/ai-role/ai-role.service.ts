@@ -2,11 +2,10 @@ import { prisma } from '../../config/database';
 import { generateConversationBiuId } from '../../utils/biuId';
 
 export async function listRoles(userId: string) {
-  // 返回公开角色 + 自己创建的角色
   const roles = await prisma.aiRole.findMany({
     where: {
       OR: [
-        { isPublic: true },
+        { visibility: 'public' },
         { userId },
       ],
     },
@@ -32,7 +31,7 @@ export async function getRole(id: string, userId: string) {
   });
 
   if (!role) throw new Error('角色不存在');
-  if (!role.isPublic && role.userId !== userId) throw new Error('无权访问此角色');
+  if (role.visibility !== 'public' && role.userId !== userId) throw new Error('无权访问此角色');
 
   return formatRole(role);
 }
@@ -43,13 +42,16 @@ export async function createRole(
     name: string;
     avatar?: string;
     description?: string;
-    personality?: string;
+    systemPrompt?: string;
     speakingStyle?: string;
     forbiddenTopics?: string;
     greeting?: string;
+    model?: string;
+    useReasoning?: boolean;
     replyLength?: string;
     temperature?: number;
-    isPublic?: boolean;
+    maxTokens?: number;
+    visibility?: string;
   }
 ) {
   const role = await prisma.aiRole.create({
@@ -57,13 +59,16 @@ export async function createRole(
       name: data.name,
       avatar: data.avatar || null,
       description: data.description || null,
-      personality: data.personality || null,
+      systemPrompt: data.systemPrompt || null,
       speakingStyle: data.speakingStyle || null,
       forbiddenTopics: data.forbiddenTopics || null,
       greeting: data.greeting || null,
+      model: data.model || null,
+      useReasoning: data.useReasoning ?? false,
       replyLength: data.replyLength || 'medium',
       temperature: data.temperature ?? 0.7,
-      isPublic: data.isPublic ?? true,
+      maxTokens: data.maxTokens ?? 2000,
+      visibility: data.visibility || 'public',
       userId,
     },
     include: {
@@ -83,13 +88,16 @@ export async function updateRole(
     name?: string;
     avatar?: string;
     description?: string;
-    personality?: string;
+    systemPrompt?: string;
     speakingStyle?: string;
     forbiddenTopics?: string;
     greeting?: string;
+    model?: string;
+    useReasoning?: boolean;
     replyLength?: string;
     temperature?: number;
-    isPublic?: boolean;
+    maxTokens?: number;
+    visibility?: string;
   }
 ) {
   const existing = await prisma.aiRole.findUnique({ where: { id } });
@@ -102,13 +110,16 @@ export async function updateRole(
       ...(data.name !== undefined && { name: data.name }),
       ...(data.avatar !== undefined && { avatar: data.avatar }),
       ...(data.description !== undefined && { description: data.description }),
-      ...(data.personality !== undefined && { personality: data.personality }),
+      ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
       ...(data.speakingStyle !== undefined && { speakingStyle: data.speakingStyle }),
       ...(data.forbiddenTopics !== undefined && { forbiddenTopics: data.forbiddenTopics }),
       ...(data.greeting !== undefined && { greeting: data.greeting }),
+      ...(data.model !== undefined && { model: data.model }),
+      ...(data.useReasoning !== undefined && { useReasoning: data.useReasoning }),
       ...(data.replyLength !== undefined && { replyLength: data.replyLength }),
       ...(data.temperature !== undefined && { temperature: data.temperature }),
-      ...(data.isPublic !== undefined && { isPublic: data.isPublic }),
+      ...(data.maxTokens !== undefined && { maxTokens: data.maxTokens }),
+      ...(data.visibility !== undefined && { visibility: data.visibility }),
     },
     include: {
       creator: {
@@ -116,6 +127,9 @@ export async function updateRole(
       },
     },
   });
+
+  // 同步更新虚拟用户的昵称和头像
+  await syncAiRoleUser(role);
 
   return formatRole(role);
 }
@@ -131,16 +145,13 @@ export async function deleteRole(id: string, userId: string) {
 
 /**
  * 点击角色后，创建或获取与该角色的私聊会话
- * AI 角色不需要对应真实 User，会话通过 AiRole 关联
- * 使用 AiRole 的 id 作为虚拟 userId 存储在 ConversationMember 中
+ * AI 角色通过虚拟 User 复用现有 Conversation/Message 体系
  */
 export async function chatWithRole(roleId: string, userId: string) {
   const role = await prisma.aiRole.findUnique({ where: { id: roleId } });
   if (!role) throw new Error('角色不存在');
-  if (!role.isPublic && role.userId !== userId) throw new Error('无权与此角色聊天');
+  if (role.visibility !== 'public' && role.userId !== userId) throw new Error('无权与此角色聊天');
 
-  // 查找是否已有该角色的会话（通过 conversation name 标识 AI 角色会话）
-  // 使用约定：AI 角色会话的 name 格式为 `__ai_role__${roleId}`
   const convName = `__ai_role__${roleId}`;
 
   const existing = await prisma.conversation.findFirst({
@@ -148,9 +159,7 @@ export async function chatWithRole(roleId: string, userId: string) {
       type: 'private',
       name: convName,
       members: {
-        every: {
-          userId: { in: [userId] },
-        },
+        some: { userId },
       },
     },
     include: {
@@ -165,20 +174,13 @@ export async function chatWithRole(roleId: string, userId: string) {
   });
 
   if (existing) {
-    // 检查当前用户是否是成员
-    const isMember = existing.members.some((m) => m.userId === userId);
-    if (isMember) {
-      return {
-        conversation: formatConversation(existing, userId),
-        role: formatRole(role),
-        isNew: false,
-      };
-    }
+    return {
+      conversation: formatConversation(existing, userId),
+      role: formatRole(role),
+      isNew: false,
+    };
   }
 
-  // 创建新会话
-  // AI 角色作为虚拟成员加入，使用 `ai_role_${roleId}` 作为 userId
-  // 需要先确保有一个对应的虚拟 User
   const aiUserId = await ensureAiRoleUser(role);
 
   const conversation = await prisma.conversation.create({
@@ -227,15 +229,22 @@ export async function chatWithRole(roleId: string, userId: string) {
 
 /**
  * 确保 AI 角色有一个对应的虚拟 User 记录
- * 这样可以复用现有的 Conversation/Message 体系
+ * isSystem: false — AI 角色不是系统通知
  */
 async function ensureAiRoleUser(role: { id: string; name: string; avatar: string | null }): Promise<string> {
   const aiUsername = `ai_role_${role.id.replace(/-/g, '_')}`;
 
   let user = await prisma.user.findUnique({ where: { username: aiUsername } });
-  if (user) return user.id;
+  if (user) {
+    if (user.nickname !== role.name || user.avatar !== role.avatar || user.isSystem) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { nickname: role.name, avatar: role.avatar, isSystem: false },
+      });
+    }
+    return user.id;
+  }
 
-  // 生成 biuId
   const biuId = `AI${Date.now().toString().slice(-8)}`;
 
   user = await prisma.user.create({
@@ -246,12 +255,21 @@ async function ensureAiRoleUser(role: { id: string; name: string; avatar: string
       nickname: role.name,
       avatar: role.avatar,
       status: 'online',
-      isSystem: true,
+      isSystem: false,
       role: 'user',
     },
   });
 
   return user.id;
+}
+
+/** 角色更新时同步虚拟用户信息 */
+async function syncAiRoleUser(role: { id: string; name: string; avatar: string | null }) {
+  const aiUsername = `ai_role_${role.id.replace(/-/g, '_')}`;
+  await prisma.user.updateMany({
+    where: { username: aiUsername },
+    data: { nickname: role.name, avatar: role.avatar, isSystem: false },
+  });
 }
 
 function formatRole(role: any) {
@@ -260,13 +278,16 @@ function formatRole(role: any) {
     name: role.name,
     avatar: role.avatar,
     description: role.description,
-    personality: role.personality,
+    systemPrompt: role.systemPrompt,
     speakingStyle: role.speakingStyle,
     forbiddenTopics: role.forbiddenTopics,
     greeting: role.greeting,
+    model: role.model,
+    useReasoning: role.useReasoning,
     replyLength: role.replyLength,
     temperature: role.temperature,
-    isPublic: role.isPublic,
+    maxTokens: role.maxTokens,
+    visibility: role.visibility,
     userId: role.userId,
     creator: role.creator,
     createdAt: role.createdAt.toISOString(),

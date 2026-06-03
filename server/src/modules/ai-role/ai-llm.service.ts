@@ -8,33 +8,82 @@ interface LLMMessage {
   content: string;
 }
 
+interface ModelConfig {
+  provider: string;
+  baseUrl: string;
+  apiKey: string;
+  chatModel: string;
+  reasoningModel: string | null;
+  reasoningEnabled: boolean;
+  reasoningMode: string;
+  reasoningDisplay: string;
+  streamingEnabled: boolean;
+  temperature: number;
+  maxTokens: number;
+}
+
+/**
+ * 获取全局 AI 模型配置
+ * 优先从数据库读取，fallback 到环境变量
+ */
+async function getGlobalConfig(): Promise<ModelConfig> {
+  const dbConfig = await prisma.aiModelConfig.findFirst();
+
+  if (dbConfig) {
+    return {
+      provider: dbConfig.provider,
+      baseUrl: dbConfig.baseUrl,
+      apiKey: dbConfig.apiKeyEncrypted || '',
+      chatModel: dbConfig.chatModel,
+      reasoningModel: dbConfig.reasoningModel,
+      reasoningEnabled: dbConfig.reasoningEnabled,
+      reasoningMode: dbConfig.reasoningMode,
+      reasoningDisplay: dbConfig.reasoningDisplay,
+      streamingEnabled: dbConfig.streamingEnabled,
+      temperature: dbConfig.temperature,
+      maxTokens: dbConfig.maxTokens,
+    };
+  }
+
+  // Fallback 到环境变量
+  return {
+    provider: process.env.AI_PROVIDER || 'openai-compatible',
+    baseUrl: process.env.AI_BASE_URL || 'https://api.openai.com/v1',
+    apiKey: process.env.AI_API_KEY || '',
+    chatModel: process.env.AI_CHAT_MODEL || 'gpt-3.5-turbo',
+    reasoningModel: process.env.AI_REASONING_MODEL || null,
+    reasoningEnabled: process.env.AI_REASONING_ENABLED === 'true',
+    reasoningMode: process.env.AI_REASONING_MODE || 'none',
+    reasoningDisplay: process.env.AI_REASONING_DISPLAY || 'hidden',
+    streamingEnabled: process.env.AI_STREAMING !== 'false',
+    temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
+  };
+}
+
 /**
  * 当用户在 AI 角色会话中发送消息后，调用此函数生成 AI 回复
  */
 export async function generateAiReply(conversationId: string, senderId: string) {
-  // 检查该会话是否是 AI 角色会话
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
   });
 
   if (!conversation || !conversation.name?.startsWith('__ai_role__')) {
-    return; // 不是 AI 角色会话，跳过
+    return;
   }
 
   const roleId = conversation.name.replace('__ai_role__', '');
-
   const role = await prisma.aiRole.findUnique({ where: { id: roleId } });
   if (!role) return;
 
-  // 获取 AI 角色对应的虚拟用户 ID
   const aiUsername = `ai_role_${roleId.replace(/-/g, '_')}`;
   const aiUser = await prisma.user.findUnique({ where: { username: aiUsername } });
   if (!aiUser) return;
 
-  // 不要回复自己发的消息
   if (senderId === aiUser.id) return;
 
-  // 获取最近 20 条消息作为上下文
+  // 获取最近消息作为上下文
   const recentMessages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
@@ -48,7 +97,17 @@ export async function generateAiReply(conversationId: string, senderId: string) 
 
   recentMessages.reverse();
 
-  // 构建 LLM 消息
+  // 获取全局配置
+  const globalConfig = await getGlobalConfig();
+
+  // 决定使用的模型：角色有配置用角色的，否则用全局的
+  const useModel = role.model || globalConfig.chatModel;
+  const useReasoning = role.useReasoning && globalConfig.reasoningEnabled;
+  const finalModel = useReasoning ? (globalConfig.reasoningModel || useModel) : useModel;
+  const temperature = role.temperature ?? globalConfig.temperature;
+  const maxTokens = role.maxTokens ?? globalConfig.maxTokens;
+
+  // 构建 system prompt
   const systemPrompt = buildSystemPrompt(role);
   const llmMessages: LLMMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -63,9 +122,9 @@ export async function generateAiReply(conversationId: string, senderId: string) 
   }
 
   try {
-    const reply = await callLLM(llmMessages, role.temperature, role.replyLength);
+    const reply = await callLLM(globalConfig, finalModel, llmMessages, temperature, maxTokens);
 
-    // 保存 AI 回复到数据库
+    // 保存 AI 回复
     const message = await prisma.message.create({
       data: {
         conversationId,
@@ -104,7 +163,7 @@ export async function generateAiReply(conversationId: string, senderId: string) 
       },
     };
 
-    // 通过 WebSocket 推送给会话成员
+    // WebSocket 推送
     const io = getIo();
     const members = await prisma.conversationMember.findMany({
       where: { conversationId },
@@ -140,7 +199,7 @@ export async function generateAiReply(conversationId: string, senderId: string) 
 function buildSystemPrompt(role: {
   name: string;
   description: string | null;
-  personality: string | null;
+  systemPrompt: string | null;
   speakingStyle: string | null;
   forbiddenTopics: string | null;
   replyLength: string;
@@ -149,12 +208,12 @@ function buildSystemPrompt(role: {
 
   parts.push(`你是${role.name}。`);
 
-  if (role.description) {
-    parts.push(`角色描述：${role.description}`);
+  if (role.systemPrompt) {
+    parts.push(role.systemPrompt);
   }
 
-  if (role.personality) {
-    parts.push(`人设/性格：${role.personality}`);
+  if (role.description) {
+    parts.push(`角色描述：${role.description}`);
   }
 
   if (role.speakingStyle) {
@@ -177,32 +236,48 @@ function buildSystemPrompt(role: {
   return parts.join('\n');
 }
 
+/**
+ * AI Provider 适配层 — OpenAI Compatible 接口
+ * 支持 DeepSeek、通义千问、Ollama 等所有兼容 OpenAI 格式的服务
+ */
 async function callLLM(
+  config: ModelConfig,
+  model: string,
   messages: LLMMessage[],
   temperature: number = 0.7,
-  _replyLength: string = 'medium'
+  maxTokens: number = 2000
 ): Promise<string> {
-  const apiKey = process.env.LLM_API_KEY;
-  const apiUrl = process.env.LLM_API_URL || 'https://api.openai.com/v1/chat/completions';
-  const model = process.env.LLM_MODEL || 'gpt-3.5-turbo';
-
-  if (!apiKey) {
-    // 没有配置 API Key 时返回默认回复
-    return '（AI 服务未配置，请联系管理员设置 LLM_API_KEY）';
+  if (!config.apiKey && config.provider !== 'ollama') {
+    return '（AI 服务未配置，请联系管理员设置 API Key）';
   }
 
-  const response = await fetch(apiUrl, {
+  const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  }
+
+  const body: any = {
+    model,
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+  };
+
+  // 思考模型适配
+  if (config.reasoningEnabled && config.reasoningMode === 'field') {
+    // DeepSeek 等支持 reasoning_content 字段
+    // 不需要额外参数，模型自动返回
+  }
+
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens: 500,
-    }),
+    headers,
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -212,5 +287,46 @@ async function callLLM(
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || '（AI 暂时无法回复）';
+
+  // 提取回复内容
+  const choice = data.choices?.[0];
+  if (!choice) throw new Error('LLM 返回数据格式异常');
+
+  // 处理思考模型的 reasoning_content
+  const reasoningContent = choice.message?.reasoning_content;
+  const mainContent = choice.message?.content || '（AI 暂时无法回复）';
+
+  // 根据配置决定是否附加思考内容
+  if (reasoningContent && config.reasoningDisplay === 'visible') {
+    return `${mainContent}\n\n---\n💭 思考过程：${reasoningContent}`;
+  }
+
+  return mainContent;
+}
+
+/**
+ * 测试 AI 连接
+ */
+export async function testConnection(config: Partial<ModelConfig>): Promise<{ success: boolean; message: string; models?: string[] }> {
+  try {
+    const url = `${(config.baseUrl || '').replace(/\/+$/, '')}/models`;
+    const headers: Record<string, string> = {};
+
+    if (config.apiKey) {
+      headers['Authorization'] = `Bearer ${config.apiKey}`;
+    }
+
+    const response = await fetch(url, { method: 'GET', headers });
+
+    if (!response.ok) {
+      return { success: false, message: `连接失败: HTTP ${response.status}` };
+    }
+
+    const data = await response.json();
+    const models = (data.data || []).map((m: any) => m.id).slice(0, 20);
+
+    return { success: true, message: '连接成功', models };
+  } catch (err: any) {
+    return { success: false, message: `连接失败: ${err.message}` };
+  }
 }

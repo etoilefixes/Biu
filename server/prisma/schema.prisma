@@ -141,18 +141,40 @@ model AiRole {
   name            String   @db.VarChar(50)
   avatar          String?  @db.VarChar(500)
   description     String?  @db.VarChar(500)
-  personality     String?  @db.Text
-  speakingStyle   String?  @db.Text
-  forbiddenTopics String?  @db.Text
+  systemPrompt    String?  @map("system_prompt") @db.Text
+  speakingStyle   String?  @map("speaking_style") @db.Text
+  forbiddenTopics String?  @map("forbidden_topics") @db.Text
   greeting        String?  @db.VarChar(500)
-  replyLength     String   @default("medium") @db.VarChar(20)
+  model           String?  @db.VarChar(100)
+  useReasoning    Boolean  @default(false) @map("use_reasoning")
+  replyLength     String   @default("medium") @map("reply_length") @db.VarChar(20)
   temperature     Float    @default(0.7)
+  maxTokens       Int      @default(2000) @map("max_tokens")
   userId          String   @map("user_id")
-  isPublic        Boolean  @default(true) @map("is_public")
+  visibility      String   @default("public") @db.VarChar(20)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   creator User @relation(fields: [userId], references: [id])
 
   @@map("ai_roles")
+}
+
+model AiModelConfig {
+  id               String   @id @default(uuid())
+  provider         String   @db.VarChar(50)
+  baseUrl          String   @map("base_url") @db.VarChar(500)
+  apiKeyEncrypted  String?  @map("api_key_encrypted") @db.VarChar(500)
+  chatModel        String   @map("chat_model") @db.VarChar(100)
+  reasoningModel   String?  @map("reasoning_model") @db.VarChar(100)
+  reasoningEnabled Boolean  @default(false) @map("reasoning_enabled")
+  reasoningMode    String   @default("none") @map("reasoning_mode") @db.VarChar(20)
+  reasoningDisplay String   @default("hidden") @map("reasoning_display") @db.VarChar(20)
+  streamingEnabled Boolean  @default(true) @map("streaming_enabled")
+  temperature      Float    @default(0.7)
+  maxTokens        Int      @default(2000) @map("max_tokens")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_model_configs")
 }
