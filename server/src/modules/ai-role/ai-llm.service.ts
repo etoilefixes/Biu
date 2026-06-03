@@ -18,6 +18,7 @@ interface ModelConfig {
   reasoningEnabled: boolean;
   reasoningMode: string;
   reasoningDisplay: string;
+  reasoningEffort: string;
   streamingEnabled: boolean;
   temperature: number;
   maxTokens: number;
@@ -40,6 +41,7 @@ async function getGlobalConfig(): Promise<ModelConfig> {
       reasoningEnabled: dbConfig.reasoningEnabled,
       reasoningMode: dbConfig.reasoningMode,
       reasoningDisplay: dbConfig.reasoningDisplay,
+      reasoningEffort: (dbConfig as any).reasoningEffort || 'high',
       streamingEnabled: dbConfig.streamingEnabled,
       temperature: dbConfig.temperature,
       maxTokens: dbConfig.maxTokens,
@@ -56,6 +58,7 @@ async function getGlobalConfig(): Promise<ModelConfig> {
     reasoningEnabled: process.env.AI_REASONING_ENABLED === 'true',
     reasoningMode: process.env.AI_REASONING_MODE || 'none',
     reasoningDisplay: process.env.AI_REASONING_DISPLAY || 'hidden',
+    reasoningEffort: process.env.AI_REASONING_EFFORT || 'high',
     streamingEnabled: process.env.AI_STREAMING !== 'false',
     temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
@@ -164,6 +167,14 @@ async function streamLLMAndReply(
     max_tokens: maxTokens,
     stream: true,
   };
+
+  // DeepSeek V4 thinking 参数适配
+  if (useReasoning) {
+    if (config.provider === 'deepseek' || config.provider === 'openai-compatible') {
+      body.thinking = { type: 'enabled' };
+      body.reasoning_effort = config.reasoningEffort || 'high';
+    }
+  }
 
   const reasoningMode = useReasoning ? config.reasoningMode : 'none';
   const parser = new ReasoningStreamParser(reasoningMode);
@@ -514,6 +525,14 @@ async function callLLM(
     temperature,
     max_tokens: maxTokens,
   };
+
+  // DeepSeek V4 thinking 参数适配
+  if (useReasoning) {
+    if (config.provider === 'deepseek' || config.provider === 'openai-compatible') {
+      body.thinking = { type: 'enabled' };
+      body.reasoning_effort = config.reasoningEffort || 'high';
+    }
+  }
 
   const response = await fetch(url, {
     method: 'POST',

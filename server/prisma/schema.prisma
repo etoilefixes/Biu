@@ -170,6 +170,7 @@ model AiModelConfig {
   reasoningEnabled Boolean  @default(false) @map("reasoning_enabled")
   reasoningMode    String   @default("none") @map("reasoning_mode") @db.VarChar(20)
   reasoningDisplay String   @default("hidden") @map("reasoning_display") @db.VarChar(20)
+  reasoningEffort  String   @default("high") @map("reasoning_effort") @db.VarChar(20)
   streamingEnabled Boolean  @default(true) @map("streaming_enabled")
   temperature      Float    @default(0.7)
   maxTokens        Int      @default(2000) @map("max_tokens")

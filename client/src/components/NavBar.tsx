@@ -431,6 +431,7 @@ function AiSettingsPanel() {
   const [reasoningEnabled, setReasoningEnabled] = useState(false);
   const [reasoningMode, setReasoningMode] = useState('none');
   const [reasoningDisplay, setReasoningDisplay] = useState('hidden');
+  const [reasoningEffort, setReasoningEffort] = useState('high');
   const [streamingEnabled, setStreamingEnabled] = useState(true);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
@@ -452,6 +453,7 @@ function AiSettingsPanel() {
       setReasoningEnabled(data.reasoningEnabled || false);
       setReasoningMode(data.reasoningMode || 'none');
       setReasoningDisplay(data.reasoningDisplay || 'hidden');
+      setReasoningEffort(data.reasoningEffort || 'high');
       setStreamingEnabled(data.streamingEnabled ?? true);
       setTemperature(data.temperature ?? 0.7);
       setMaxTokens(data.maxTokens ?? 2000);
@@ -474,6 +476,7 @@ function AiSettingsPanel() {
         reasoningEnabled,
         reasoningMode,
         reasoningDisplay,
+        reasoningEffort,
         streamingEnabled,
         temperature,
         maxTokens,
@@ -568,7 +571,7 @@ function AiSettingsPanel() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white text-sm font-body">启用思考模型</p>
-              <p className="text-gray-600 text-[11px] font-body">使用推理模型（如 deepseek-reasoner）</p>
+              <p className="text-gray-600 text-[11px] font-body">启用 DeepSeek thinking 推理模式</p>
             </div>
             <button
               onClick={() => setReasoningEnabled(!reasoningEnabled)}
@@ -585,9 +588,21 @@ function AiSettingsPanel() {
                   type="text"
                   value={reasoningModel}
                   onChange={(e) => setReasoningModel(e.target.value)}
-                  placeholder="deepseek-reasoner"
+                  placeholder="留空则使用默认聊天模型"
                   className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
                 />
+              </div>
+              <div>
+                <label className="text-gray-500 text-xs font-medium mb-1 block">推理强度 (reasoning_effort)</label>
+                <select
+                  value={reasoningEffort}
+                  onChange={(e) => setReasoningEffort(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
+                >
+                  <option value="low" className="bg-biu-dark">低 (low)</option>
+                  <option value="medium" className="bg-biu-dark">中 (medium)</option>
+                  <option value="high" className="bg-biu-dark">高 (high)</option>
+                </select>
               </div>
               <div>
                 <label className="text-gray-500 text-xs font-medium mb-1 block">思考内容展示</label>
@@ -597,7 +612,7 @@ function AiSettingsPanel() {
                   className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
                 >
                   <option value="hidden" className="bg-biu-dark">隐藏</option>
-                  <option value="visible" className="bg-biu-dark">显示</option>
+                  <option value="visible" className="bg-biu-dark">折叠显示</option>
                 </select>
               </div>
             </>
