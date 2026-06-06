@@ -1,6 +1,7 @@
 import { prisma } from '../../config/database';
 import { redis } from '../../config/redis';
 import { getIo } from '../../socket';
+import { generateConversationBiuId } from '../../utils/biuId';
 
 export async function sendFriendRequest(
   fromUserId: string,
@@ -113,9 +114,11 @@ export async function handleFriendRequest(
       include: { members: true },
     });
 
+    let conversation;
     if (!existingConv || existingConv.members.length < 2) {
-      await prisma.conversation.create({
+      conversation = await prisma.conversation.create({
         data: {
+          biuId: generateConversationBiuId(),
           type: 'private',
           creatorId: userId,
           ownerId: userId,
@@ -127,6 +130,27 @@ export async function handleFriendRequest(
           },
         },
       });
+    } else {
+      conversation = existingConv;
+    }
+
+    // 发送"新朋友"欢迎伪消息
+    try {
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: 'system',
+          content: '',
+          type: 'card',
+          cardType: 'friend_welcome',
+          cardData: JSON.stringify({
+            title: '新朋友',
+            body: '我们已成功添加为好友，现在可以开始聊天啦~',
+          }),
+        },
+      });
+    } catch (err) {
+      console.error('Failed to send friend welcome message:', err);
     }
   }
 
@@ -186,8 +210,8 @@ export async function getFriends(userId: string) {
   const accepted = await prisma.friendRequest.findMany({
     where: {
       OR: [
-        { fromUserId: userId, status: 'accepted' },
-        { toUserId: userId, status: 'accepted' },
+        { fromUserId: userId, status: 'accepted', toUser: { isSystem: false } },
+        { toUserId: userId, status: 'accepted', fromUser: { isSystem: false } },
       ],
     },
     include: {

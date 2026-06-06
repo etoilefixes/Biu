@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database';
+import { generateConversationBiuId } from '../../utils/biuId';
 
 export async function quickSendMessage(userId: string, targetUserId: string, content: string) {
   let conversation = await prisma.conversation.findFirst({
@@ -16,6 +17,7 @@ export async function quickSendMessage(userId: string, targetUserId: string, con
   if (!conversation) {
     conversation = await prisma.conversation.create({
       data: {
+        biuId: generateConversationBiuId(),
         type: 'private',
         creatorId: userId,
         ownerId: userId,
