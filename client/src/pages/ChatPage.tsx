@@ -1276,42 +1276,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes slideInFromRight {
-          from {
-            transform: translateX(100%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-
-        .mention-chip {
-          display: inline-block;
-          background: rgba(239, 68, 68, 0.15);
-          color: #ef4444;
-          font-weight: 600;
-          font-size: 0.875rem;
-          padding: 0 6px;
-          margin-right: 2px;
-          border-radius: 6px;
-          line-height: 1.6;
-          white-space: nowrap;
-          user-select: none;
-          cursor: default;
-        }
-
-        [contenteditable][aria-placeholder]:empty::before {
-          content: attr(aria-placeholder);
-          color: #4b5563;
-          pointer-events: none;
-        }
-
-        [contenteditable]:focus {
-          outline: none;
-        }
-      ` }} />
-
       <div
         className="glass border-r border-white/5 flex flex-col shrink-0"
         style={{ width: sidebarWidth }}

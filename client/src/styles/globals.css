@@ -202,6 +202,36 @@ body {
   animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.mention-chip {
+  display: inline-block;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0 6px;
+  margin-right: 2px;
+  border-radius: 6px;
+  line-height: 1.6;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
+
+[contenteditable][aria-placeholder]:empty::before {
+  content: attr(aria-placeholder);
+  color: #4b5563;
+  pointer-events: none;
+}
+
+[contenteditable]:focus {
+  outline: none;
+}
+
 .page-transition {
   animation: fadeIn 0.2s ease-out;
 }
