@@ -17,5 +17,7 @@ router.put('/:id/announcement', authMiddleware, chatController.setAnnouncement);
 router.delete('/:id/members', authMiddleware, chatController.removeMember);
 router.post('/:id/leave', authMiddleware, chatController.leaveGroup);
 router.delete('/:id/dissolve', authMiddleware, chatController.dissolveGroup);
+router.put('/:id/role', authMiddleware, chatController.setRole);
+router.put('/:id/transfer-owner', authMiddleware, chatController.transferOwner);
 
 export default router;

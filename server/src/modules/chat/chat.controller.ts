@@ -133,3 +133,25 @@ export async function dissolveGroup(req: AuthRequest, res: Response) {
     res.status(400).json({ code: 400, message: err.message });
   }
 }
+
+export async function setRole(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const { memberId, role } = req.body;
+    await chatService.setMemberRole(req.userId!, id, memberId, role);
+    res.json({ code: 200, message: '角色设置成功' });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
+
+export async function transferOwner(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const { newOwnerUserId } = req.body;
+    await chatService.transferOwnership(req.userId!, id, newOwnerUserId);
+    res.json({ code: 200, message: '群主已转让' });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
