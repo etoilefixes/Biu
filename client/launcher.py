@@ -60,6 +60,38 @@ def next_account_id(accounts):
     return max(a["id"] for a in accounts) + 1
 
 
+def api_register(username, password, nickname=None):
+    """调用 Biu API 注册账号，返回 (token, user_info) 或 (None, error_msg)"""
+    try:
+        body = json.dumps({"username": username, "password": password, "nickname": nickname or username})
+        conn = http.client.HTTPConnection("localhost", 3001, timeout=5)
+        conn.request("POST", "/api/auth/register", body, {"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        data = json.loads(resp.read().decode("utf-8"))
+        conn.close()
+        if resp.status in (200, 201) and data.get("data"):
+            return data["data"].get("token"), data["data"].get("user")
+        return None, data.get("message", "注册失败")
+    except Exception as e:
+        return None, str(e)
+
+
+def api_login(username, password):
+    """调用 Biu API 登录，返回 (token, user_info) 或 (None, error_msg)"""
+    try:
+        body = json.dumps({"account": username, "password": password})
+        conn = http.client.HTTPConnection("localhost", 3001, timeout=5)
+        conn.request("POST", "/api/auth/login", body, {"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        data = json.loads(resp.read().decode("utf-8"))
+        conn.close()
+        if resp.status == 200 and data.get("data"):
+            return data["data"].get("token"), data["data"].get("user")
+        return None, data.get("message", "登录失败")
+    except Exception as e:
+        return None, str(e)
+
+
 class BiuLauncher:
     def __init__(self, root):
         self.root = root
@@ -190,14 +222,19 @@ class BiuLauncher:
         name_frame.grid(row=0, column=1, sticky="w")
         name_frame.columnconfigure(0, weight=1)
 
-        name_text = account["name"]
+        name_text = account.get("name", "未知账号")
+        username_text = account.get("username", "")
         name_lbl = tk.Label(name_frame, text=name_text, font=FONT_BOLD, fg=FG, bg=BG_CARD, anchor="w")
         name_lbl.grid(row=0, column=0, sticky="w")
 
+        if username_text:
+            tk.Label(name_frame, text=f"@{username_text}", font=FONT_SMALL, fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=1, column=0, sticky="w")
+
         status_text = "运行中" if is_running else "已停止"
         status_color = ACCENT if is_running else FG_DIM
+        status_row = 2 if username_text else 1
         status_lbl = tk.Label(name_frame, text=status_text, font=FONT_SMALL, fg=status_color, bg=BG_CARD, anchor="w")
-        status_lbl.grid(row=1, column=0, sticky="w")
+        status_lbl.grid(row=status_row, column=0, sticky="w")
 
         actions = tk.Frame(row, bg=BG_CARD)
         actions.grid(row=0, column=2, sticky="e", padx=(8, 0))
@@ -215,14 +252,71 @@ class BiuLauncher:
         }
 
     def add_account(self):
-        name = simpledialog.askstring("添加账号", "输入账号名称:", parent=self.root)
-        if not name:
-            return
-        account = {"id": next_account_id(self.accounts), "name": name.strip(), "auto_start": False}
-        self.accounts.append(account)
-        save_accounts(self.accounts)
-        self._refresh_account_list()
-        self._set_status(f"已添加账号: {name.strip()}")
+        dialog = tk.Toplevel(self.root)
+        dialog.title("添加 Biu 账号")
+        dialog.geometry("380x280")
+        dialog.configure(bg=BG)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(dialog, text="添加 Biu 账号", font=FONT_TITLE, fg=ACCENT, bg=BG).pack(pady=(16, 12))
+
+        form = tk.Frame(dialog, bg=BG)
+        form.pack(fill="x", padx=24)
+
+        fields = {}
+        for label_text, key in [("账号名称", "name"), ("Biu 用户名", "username"), ("密码", "password")]:
+            row = tk.Frame(form, bg=BG)
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=label_text, font=FONT, fg=FG_DIM, bg=BG, width=10, anchor="e").pack(side="left")
+            show = "*" if key == "password" else ""
+            entry = tk.Entry(row, font=FONT, fg=FG, bg=BG_CARD, insertbackground=FG,
+                             relief="flat", show=show, width=24)
+            entry.pack(side="left", padx=(8, 0), ipady=3)
+            fields[key] = entry
+
+        result = {"ok": False}
+
+        def on_submit():
+            name = fields["name"].get().strip()
+            username = fields["username"].get().strip()
+            password = fields["password"].get().strip()
+
+            if not name or not username or not password:
+                messagebox.showwarning("提示", "请填写所有字段", parent=dialog)
+                return
+
+            # 尝试登录，失败则尝试注册
+            token, info = api_login(username, password)
+            if not token:
+                token, info = api_register(username, password, name)
+                if not token:
+                    messagebox.showerror("添加失败", f"无法登录或注册: {info}", parent=dialog)
+                    return
+                action = "注册并登录"
+            else:
+                action = "登录"
+
+            account = {
+                "id": next_account_id(self.accounts),
+                "name": name,
+                "auto_start": False,
+                "username": username,
+                "token": token,
+            }
+            self.accounts.append(account)
+            save_accounts(self.accounts)
+            self._refresh_account_list()
+            self._set_status(f"已添加账号: {name} ({action}成功)")
+            result["ok"] = True
+            dialog.destroy()
+
+        btn_row = tk.Frame(dialog, bg=BG)
+        btn_row.pack(pady=16)
+        self._make_btn(btn_row, "取消", BORDER, dialog.destroy, grid=False).pack(side="left", padx=8)
+        self._make_btn(btn_row, "添加", ACCENT, on_submit, grid=False).pack(side="left", padx=8)
+
+        dialog.wait_window()
 
     def edit_account(self, aid):
         account = next((a for a in self.accounts if a["id"] == aid), None)
@@ -357,6 +451,8 @@ class BiuLauncher:
 
         env = os.environ.copy()
         env["ELECTRON_DEV"] = "1"
+        if account.get("token"):
+            env["BIU_TOKEN"] = account["token"]
 
         log_path = os.path.join(LOG_DIR, f"electron-{aid}.log")
         log_file = open(log_path, "w")
