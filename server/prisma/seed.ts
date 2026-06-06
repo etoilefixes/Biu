@@ -32,7 +32,7 @@ async function main() {
       biuId: SYSTEM_BIU_ID,
       username: SYSTEM_USERNAME,
       passwordHash,
-      nickname: 'Biu 系统',
+      nickname: 'Biu团队',
       isSystem: true,
       status: 'online',
     },
