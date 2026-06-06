@@ -59,3 +59,23 @@ export async function chatWithRole(req: AuthRequest, res: Response) {
     res.status(400).json({ code: 400, message: err.message });
   }
 }
+
+export async function clearConversationMessages(req: AuthRequest, res: Response) {
+  try {
+    const conversationId = req.params.conversationId as string;
+    const result = await aiRoleService.clearConversationMessages(conversationId, req.userId!);
+    res.json({ code: 200, message: '清除成功', data: result });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}
+
+export async function regenerateLastReply(req: AuthRequest, res: Response) {
+  try {
+    const conversationId = req.params.conversationId as string;
+    const result = await aiRoleService.regenerateLastReply(conversationId, req.userId!);
+    res.json({ code: 200, message: '重新生成中', data: result });
+  } catch (err: any) {
+    res.status(400).json({ code: 400, message: err.message });
+  }
+}

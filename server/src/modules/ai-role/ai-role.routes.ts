@@ -10,6 +10,10 @@ router.get('/config/model', authMiddleware, modelConfigController.getConfig);
 router.put('/config/model', authMiddleware, modelConfigController.saveConfig);
 router.post('/config/test', authMiddleware, modelConfigController.testConfigConnection);
 
+// AI 会话操作路由（放在 /:id 之前）
+router.delete('/conversations/:conversationId/messages', authMiddleware, controller.clearConversationMessages);
+router.post('/conversations/:conversationId/regenerate', authMiddleware, controller.regenerateLastReply);
+
 // AI 角色路由
 router.get('/', authMiddleware, controller.listRoles);
 router.post('/', authMiddleware, controller.createRole);
