@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconCheck, IconX, IconAlertCircle } from './Icons';
+import { IconCheck, IconX, IconHelpCircle } from './Icons';
 
 interface LocalToastProps {
   message: string;
@@ -16,7 +16,7 @@ export default function LocalToast({ message, type, onClose }: LocalToastProps) 
   const iconMap: Record<string, React.ReactNode> = {
     success: <IconCheck size={14} />,
     error: <IconX size={14} />,
-    info: <IconAlertCircle size={14} />,
+    info: <IconHelpCircle size={14} />,
   };
 
   const colorMap: Record<string, string> = {
