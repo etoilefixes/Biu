@@ -7,13 +7,13 @@ export async function list(req: AuthRequest, res: Response) {
     const before = req.query.before as string | undefined;
     const limit = parseInt(req.query.limit as string) || 50;
     const conversationId = req.params.conversationId as string;
-    const messages = await messageService.getMessages(
+    const result = await messageService.getMessages(
       conversationId,
       req.userId!,
       before,
       limit
     );
-    res.json({ code: 200, message: '获取成功', data: messages });
+    res.json({ code: 200, message: '获取成功', data: result });
   } catch (err: any) {
     res.status(403).json({ code: 403, message: err.message });
   }
