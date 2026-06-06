@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { useFriendStore } from '../store/friendStore';
+import { useNotification } from '../hooks/useNotification';
+import { useNotificationStore } from '../store/notificationStore';
 import { socketService } from '../services/socket';
 import api from '../services/api';
 import ConversationItem from '../components/ConversationItem';
@@ -52,6 +54,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user);
+  const notifyRef = useNotification();
   const {
     conversations,
     currentConversation,
@@ -137,7 +140,10 @@ export default function ChatPage() {
   useEffect(() => {
     loadConversations();
     api.get('/friends').then((res: any) => setFriends(res.data)).catch(() => {});
-    socketService.onMessage(addMessage);
+    socketService.onMessage((msg) => {
+      addMessage(msg);
+      notifyRef.current(msg);
+    });
     socketService.onTyping((data) => setTyping(data.conversationId, data.userId));
     socketService.onUnread((data) => {
       const currentId = useChatStore.getState().currentConversation?.id;
@@ -1178,6 +1184,16 @@ export default function ChatPage() {
                   </div>
                 </div>
 
+                <div className="pt-2 border-t border-white/5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-xs font-medium">消息免打扰</p>
+                      <p className="text-gray-600 text-[11px] font-body">开启后不再弹出此会话的通知</p>
+                    </div>
+                    <MuteToggle conversationId={currentConversation.id} />
+                  </div>
+                </div>
+
                 {canManage && (
                   <div>
                     <label className="text-gray-400 text-xs font-medium mb-1.5 block">群公告</label>
@@ -1707,5 +1723,20 @@ export default function ChatPage() {
         <AiRoleModal onClose={() => setShowAiRoleModal(false)} />
       )}
     </>
+  );
+}
+
+/** 免打扰开关组件 */
+function MuteToggle({ conversationId }: { conversationId: string }) {
+  const isMuted = useNotificationStore((s) => s.isConversationMuted(conversationId));
+  const setConversationMuted = useNotificationStore((s) => s.setConversationMuted);
+
+  return (
+    <button
+      onClick={() => setConversationMuted(conversationId, !isMuted)}
+      className={`w-10 h-6 rounded-full transition-all duration-200 relative ${isMuted ? 'bg-biu-primary' : 'bg-white/10'}`}
+    >
+      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${isMuted ? 'left-5' : 'left-1'}`} />
+    </button>
   );
 }

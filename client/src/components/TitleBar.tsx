@@ -1,19 +1,33 @@
 import React, { useState, useEffect } from 'react';
+import { useChatStore } from '../store/chatStore';
 
 export default function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
+  const totalUnread = useChatStore((s) => s.totalUnread);
 
   useEffect(() => {
     window.electronAPI?.isMaximized().then(setIsMaximized);
     window.electronAPI?.onMaximizedChanged(setIsMaximized);
   }, []);
 
+  // 同步角标到 Electron
+  useEffect(() => {
+    if (window.electronAPI?.setBadge) {
+      window.electronAPI.setBadge(totalUnread);
+    }
+  }, [totalUnread]);
+
   const handleMinimize = () => window.electronAPI?.minimize();
   const handleMaximize = () => window.electronAPI?.maximize();
   const handleClose = () => window.electronAPI?.close();
 
   return (
-    <div className="flex items-center justify-end h-9 shrink-0 select-none" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="flex items-center justify-between h-9 shrink-0 select-none px-3" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-gray-500 text-xs font-body truncate">
+          {totalUnread > 0 ? `${totalUnread} 条未读消息` : 'Biu'}
+        </span>
+      </div>
       <div className="flex h-full" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={handleMinimize}

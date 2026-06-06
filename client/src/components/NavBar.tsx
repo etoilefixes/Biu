@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useFriendStore } from '../store/friendStore';
 import { useChatStore } from '../store/chatStore';
+import { useNotificationStore } from '../store/notificationStore';
 import Toast from './Toast';
 import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, IconCrown, IconRobot } from './Icons';
 import AvatarWithBadge from './AvatarWithBadge';
@@ -39,10 +40,10 @@ export default function NavBar() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [messagePreview, setMessagePreview] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [markdownEnabled, setMarkdownEnabled] = useState(true);
   const [settingsTab, setSettingsTab] = useState<'general' | 'ai'>('general');
+
+  const { globalEnabled: notificationEnabled, setGlobalEnabled: setNotificationEnabled, soundEnabled, setSoundEnabled, showPreview: notifShowPreview } = useNotificationStore();
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -275,6 +276,18 @@ export default function NavBar() {
                     className={`w-10 h-6 rounded-full transition-all duration-200 relative ${notificationEnabled ? 'bg-biu-primary' : 'bg-white/10'}`}
                   >
                     <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${notificationEnabled ? 'left-5' : 'left-1'}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white text-sm font-body">通知预览</p>
+                    <p className="text-gray-600 text-[11px] font-body">在通知中显示消息内容</p>
+                  </div>
+                  <button
+                    onClick={() => useNotificationStore.getState().setShowPreview(!notifShowPreview)}
+                    className={`w-10 h-6 rounded-full transition-all duration-200 relative ${notifShowPreview ? 'bg-biu-primary' : 'bg-white/10'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${notifShowPreview ? 'left-5' : 'left-1'}`} />
                   </button>
                 </div>
                 <div className="flex items-center justify-between">

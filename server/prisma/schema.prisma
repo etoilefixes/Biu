@@ -29,6 +29,7 @@ model User {
   badges        UserBadge[]
   aiRoles       AiRole[]
   aiRoleConfigs AiRoleUserConfig[]
+  notificationSettings NotificationSetting[]
 
   @@map("users")
 }
@@ -203,4 +204,19 @@ model AiModelConfig {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("ai_model_configs")
+}
+
+model NotificationSetting {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  conversationId String   @default("") @map("conversation_id") @db.VarChar(36)
+  muted          Boolean  @default(false)
+  showPreview    Boolean  @default(true) @map("show_preview")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId])
+  @@map("notification_settings")
 }

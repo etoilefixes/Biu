@@ -8,5 +8,9 @@ interface Window {
     close: () => void;
     isMaximized: () => Promise<boolean>;
     onMaximizedChanged: (callback: (maximized: boolean) => void) => void;
+    // 通知系统
+    showNotification: (data: { title: string; body: string; icon?: string; conversationId?: string }) => void;
+    setBadge: (count: number) => void;
+    onNotificationClicked: (callback: (data: { conversationId?: string }) => void) => void;
   };
 }
