@@ -471,6 +471,8 @@ function AiSettingsPanel() {
   const [streamingEnabled, setStreamingEnabled] = useState(true);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
+  const [contextMessageLimit, setContextMessageLimit] = useState(20);
+  const [includePrivateContext, setIncludePrivateContext] = useState(false);
 
   useEffect(() => {
     loadConfig();
@@ -493,6 +495,8 @@ function AiSettingsPanel() {
       setStreamingEnabled(data.streamingEnabled ?? true);
       setTemperature(data.temperature ?? 0.7);
       setMaxTokens(data.maxTokens ?? 2000);
+      setContextMessageLimit(data.contextMessageLimit ?? 20);
+      setIncludePrivateContext(data.includePrivateContext ?? false);
     } catch (err: any) {
       setToast({ message: '加载配置失败', type: 'error' });
     } finally {
@@ -516,6 +520,8 @@ function AiSettingsPanel() {
         streamingEnabled,
         temperature,
         maxTokens,
+        contextMessageLimit,
+        includePrivateContext,
       });
       setApiKey(''); // 清空，不保留在前端
       setToast({ message: '保存成功', type: 'success' });
@@ -653,6 +659,43 @@ function AiSettingsPanel() {
               </div>
             </>
           )}
+        </div>
+      </div>
+
+      <div className="pt-3 border-t border-white/5">
+        <h3 className="text-gray-500 text-xs font-medium mb-3">上下文配置</h3>
+        <div className="space-y-3">
+          <div>
+            <label className="text-gray-500 text-xs font-medium mb-1 block">
+              历史消息条数: {contextMessageLimit}
+            </label>
+            <input
+              type="range"
+              min="5"
+              max="50"
+              step="5"
+              value={contextMessageLimit}
+              onChange={(e) => setContextMessageLimit(parseInt(e.target.value))}
+              className="w-full accent-biu-primary"
+            />
+            <div className="flex justify-between text-[10px] text-gray-600 font-body mt-0.5">
+              <span>5条</span>
+              <span>50条</span>
+            </div>
+            <p className="text-gray-600 text-[11px] font-body mt-1">AI 回复时参考的最近消息数量，越多越有上下文感但消耗更多 token</p>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white text-sm font-body">参考私聊记录</p>
+              <p className="text-gray-600 text-[11px] font-body">AI 回复时可参考与发送者的私聊历史</p>
+            </div>
+            <button
+              onClick={() => setIncludePrivateContext(!includePrivateContext)}
+              className={`w-10 h-6 rounded-full transition-all duration-200 relative ${includePrivateContext ? 'bg-biu-primary' : 'bg-white/10'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${includePrivateContext ? 'left-5' : 'left-1'}`} />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -25,6 +25,8 @@ export async function getConfig(req: AuthRequest, res: Response) {
           streamingEnabled: process.env.AI_STREAMING !== 'false',
           temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
           maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
+          contextMessageLimit: 20,
+          includePrivateContext: false,
           source: 'env',
         },
       });
@@ -47,6 +49,8 @@ export async function getConfig(req: AuthRequest, res: Response) {
         streamingEnabled: config.streamingEnabled,
         temperature: config.temperature,
         maxTokens: config.maxTokens,
+        contextMessageLimit: (config as any).contextMessageLimit || 20,
+        includePrivateContext: (config as any).includePrivateContext ?? false,
         source: 'database',
       },
     });
@@ -72,6 +76,8 @@ export async function saveConfig(req: AuthRequest, res: Response) {
       streamingEnabled: data.streamingEnabled ?? true,
       temperature: data.temperature ?? 0.7,
       maxTokens: data.maxTokens ?? 2000,
+      contextMessageLimit: data.contextMessageLimit ?? 20,
+      includePrivateContext: data.includePrivateContext ?? false,
     };
 
     // 只在提供了新 API Key 时更新
@@ -110,6 +116,8 @@ export async function saveConfig(req: AuthRequest, res: Response) {
         streamingEnabled: config.streamingEnabled,
         temperature: config.temperature,
         maxTokens: config.maxTokens,
+        contextMessageLimit: (config as any).contextMessageLimit || 20,
+        includePrivateContext: (config as any).includePrivateContext ?? false,
       },
     });
   } catch (err: any) {

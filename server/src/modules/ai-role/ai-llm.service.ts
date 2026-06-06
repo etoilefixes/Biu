@@ -2,7 +2,8 @@ import { prisma } from '../../config/database';
 import { getIo } from '../../socket';
 import { ReasoningStreamParser, AiStreamChunk } from './reasoning-parser';
 
-const CONTEXT_MESSAGE_LIMIT = 20;
+const DEFAULT_CONTEXT_MESSAGE_LIMIT = 20;
+const PRIVATE_CONTEXT_MESSAGE_LIMIT = 10;
 
 interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -22,6 +23,8 @@ interface ModelConfig {
   streamingEnabled: boolean;
   temperature: number;
   maxTokens: number;
+  contextMessageLimit: number;
+  includePrivateContext: boolean;
 }
 
 /**
@@ -45,6 +48,8 @@ async function getGlobalConfig(): Promise<ModelConfig> {
       streamingEnabled: dbConfig.streamingEnabled,
       temperature: dbConfig.temperature,
       maxTokens: dbConfig.maxTokens,
+      contextMessageLimit: (dbConfig as any).contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT,
+      includePrivateContext: (dbConfig as any).includePrivateContext ?? false,
     };
   }
 
@@ -62,6 +67,8 @@ async function getGlobalConfig(): Promise<ModelConfig> {
     streamingEnabled: process.env.AI_STREAMING !== 'false',
     temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
+    contextMessageLimit: DEFAULT_CONTEXT_MESSAGE_LIMIT,
+    includePrivateContext: false,
   };
 }
 
@@ -71,6 +78,15 @@ async function getGlobalConfig(): Promise<ModelConfig> {
 export async function generateAiReply(conversationId: string, senderId: string) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
+    include: {
+      members: {
+        include: {
+          user: {
+            select: { id: true, nickname: true },
+          },
+        },
+      },
+    },
   });
 
   if (!conversation || !conversation.name?.startsWith('__ai_role__')) {
@@ -87,11 +103,15 @@ export async function generateAiReply(conversationId: string, senderId: string) 
 
   if (senderId === aiUser.id) return;
 
-  // 获取最近消息作为上下文
+  // 获取全局配置
+  const globalConfig = await getGlobalConfig();
+
+  // 获取最近消息作为上下文（使用可配置的条数）
+  const contextLimit = globalConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
   const recentMessages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
-    take: CONTEXT_MESSAGE_LIMIT,
+    take: contextLimit,
     include: {
       sender: {
         select: { id: true, nickname: true },
@@ -100,9 +120,6 @@ export async function generateAiReply(conversationId: string, senderId: string) 
   });
 
   recentMessages.reverse();
-
-  // 获取全局配置
-  const globalConfig = await getGlobalConfig();
 
   // 查找用户级 AI 参数覆盖
   const userConfig = await prisma.aiRoleUserConfig.findUnique({
@@ -121,11 +138,60 @@ export async function generateAiReply(conversationId: string, senderId: string) 
   const temperature = effectiveTemperature;
   const maxTokens = effectiveMaxTokens;
 
-  // 构建 system prompt
-  const systemPrompt = buildSystemPrompt(role);
+  // 构建群成员列表（仅群昵称）
+  const memberList = conversation.members
+    .filter((m) => m.userId !== aiUser.id)
+    .map((m) => m.nickname || m.user.nickname);
+
+  // 构建 system prompt（包含群成员信息）
+  const systemPrompt = buildSystemPrompt(role, memberList);
   const llmMessages: LLMMessage[] = [
     { role: 'system', content: systemPrompt },
   ];
+
+  // 如果开启私聊上下文参考，查找发送者与 AI 的私聊历史
+  if (globalConfig.includePrivateContext) {
+    const privateConv = await prisma.conversation.findFirst({
+      where: {
+        type: 'private',
+        members: {
+          every: { userId: { in: [senderId, aiUser.id] } },
+        },
+      },
+    });
+
+    if (privateConv) {
+      const privateMessages = await prisma.message.findMany({
+        where: { conversationId: privateConv.id },
+        orderBy: { createdAt: 'desc' },
+        take: PRIVATE_CONTEXT_MESSAGE_LIMIT,
+        include: {
+          sender: {
+            select: { id: true, nickname: true },
+          },
+        },
+      });
+      privateMessages.reverse();
+
+      if (privateMessages.length > 0) {
+        llmMessages.push({
+          role: 'system',
+          content: `[以下是你与 ${privateMessages[0].sender.nickname} 的私聊记录，仅供参考]`,
+        });
+        for (const msg of privateMessages) {
+          const isAi = msg.senderId === aiUser.id;
+          llmMessages.push({
+            role: isAi ? 'assistant' : 'user',
+            content: isAi ? msg.content : `${msg.sender.nickname}: ${msg.content}`,
+          });
+        }
+        llmMessages.push({
+          role: 'system',
+          content: '[私聊记录结束，以下是当前群聊上下文]',
+        });
+      }
+    }
+  }
 
   for (const msg of recentMessages) {
     const isAi = msg.senderId === aiUser.id;
@@ -470,7 +536,7 @@ function buildSystemPrompt(role: {
   speakingStyle: string | null;
   forbiddenTopics: string | null;
   replyLength: string;
-}): string {
+}, memberList?: string[]): string {
   const parts: string[] = [];
 
   parts.push(`你是${role.name}。`);
@@ -481,6 +547,10 @@ function buildSystemPrompt(role: {
 
   if (role.description) {
     parts.push(`角色描述：${role.description}`);
+  }
+
+  if (memberList && memberList.length > 0) {
+    parts.push(`群成员：${memberList.join('、')}`);
   }
 
   if (role.speakingStyle) {
