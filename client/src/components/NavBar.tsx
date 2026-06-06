@@ -8,6 +8,8 @@ import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, Icon
 import AvatarWithBadge from './AvatarWithBadge';
 import UserBadge from './UserBadge';
 import AiRoleModal from './AiRoleModal';
+import ContactsPanel from './ContactsPanel';
+import AdminPanel from './AdminPanel';
 import api from '../services/api';
 
 function formatBadge(count: number): string {
@@ -25,6 +27,8 @@ export default function NavBar() {
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAiRoleModal, setShowAiRoleModal] = useState(false);
+  const [showContacts, setShowContacts] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
@@ -110,7 +114,6 @@ export default function NavBar() {
 
   const items = [
     { path: '/chat', icon: <IconChat size={20} />, label: '消息' },
-    { path: '/contacts', icon: <IconContacts size={20} />, label: '联系人' },
   ];
 
   const isOfficial = user?.role === 'admin' || user?.role === 'super_admin';
@@ -334,9 +337,7 @@ export default function NavBar() {
         {items.map((item) => {
           const badge = item.path === '/chat'
             ? formatBadge(totalUnread)
-            : item.path === '/contacts'
-              ? formatBadge(pendingRequestCount)
-              : '';
+            : '';
           return (
             <button
               key={item.path}
@@ -357,6 +358,22 @@ export default function NavBar() {
             </button>
           );
         })}
+        <button
+          onClick={() => setShowContacts(!showContacts)}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative ${
+            showContacts
+              ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
+              : 'text-gray-500 hover:text-white hover:bg-white/5'
+          }`}
+          title="联系人"
+        >
+          <IconContacts size={20} />
+          {pendingRequestCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none">
+              {formatBadge(pendingRequestCount)}
+            </span>
+          )}
+        </button>
         {isAIUser && (
           <button
             onClick={() => navigate('/ai-chat')}
@@ -372,9 +389,9 @@ export default function NavBar() {
         )}
         {isOfficial && (
           <button
-            onClick={() => navigate('/admin')}
+            onClick={() => setShowAdmin(!showAdmin)}
             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
-              location.pathname === '/admin'
+              showAdmin
                 ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
                 : 'text-gray-500 hover:text-white hover:bg-white/5'
             }`}
@@ -408,6 +425,12 @@ export default function NavBar() {
       </div>
       {showAiRoleModal && (
         <AiRoleModal onClose={() => setShowAiRoleModal(false)} />
+      )}
+      {showContacts && (
+        <ContactsPanel onClose={() => setShowContacts(false)} />
+      )}
+      {showAdmin && (
+        <AdminPanel onClose={() => setShowAdmin(false)} />
       )}
     </>
   );

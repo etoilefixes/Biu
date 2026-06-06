@@ -6,9 +6,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ChatPage from './pages/ChatPage';
-import ContactsPage from './pages/ContactsPage';
-import ProfilePage from './pages/ProfilePage';
-import AdminPage from './pages/AdminPage';
 import AIChatPage from './pages/AIChatPage';
 import AppLayout from './layouts/AppLayout';
 import AILayout from './layouts/AILayout';
@@ -53,9 +50,6 @@ export default function App() {
             }
           >
             <Route path="/chat" element={<ChatPage />} />
-            <Route path="/contacts" element={<ContactsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/admin" element={<AdminPage />} />
           </Route>
           
           <Route 
