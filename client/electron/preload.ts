@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
+  autoLoginToken: process.env.BIU_TOKEN || '',
   setTitle: (title: string) => ipcRenderer.send('set-title', title),
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),

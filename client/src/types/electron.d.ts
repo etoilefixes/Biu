@@ -1,6 +1,7 @@
 interface Window {
   electronAPI?: {
     platform: string;
+    autoLoginToken: string;
     setTitle: (title: string) => void;
     minimize: () => void;
     maximize: () => void;
