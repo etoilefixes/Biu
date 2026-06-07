@@ -5,6 +5,20 @@ class SocketService {
   private socket: Socket | null = null;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private token: string | null = null;
+  private connectionListeners: ((connected: boolean) => void)[] = [];
+
+  onConnectionChange(callback: (connected: boolean) => void) {
+    this.connectionListeners.push(callback);
+    // 立即回调当前状态
+    callback(this.socket?.connected ?? false);
+    return () => {
+      this.connectionListeners = this.connectionListeners.filter((l) => l !== callback);
+    };
+  }
+
+  private notifyConnectionChange(connected: boolean) {
+    this.connectionListeners.forEach((l) => l(connected));
+  }
 
   connect(token: string) {
     this.token = token;
@@ -26,14 +40,17 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('[Socket] connected, id:', this.socket?.id);
+      this.notifyConnectionChange(true);
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('[Socket] disconnected, reason:', reason);
+      this.notifyConnectionChange(false);
     });
 
     this.socket.on('connect_error', (err) => {
       console.error('[Socket] connect_error:', err.message);
+      this.notifyConnectionChange(false);
     });
 
     this.startHeartbeat();
