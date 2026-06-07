@@ -67,7 +67,7 @@ export default function ConversationItem({
       : otherMember?.user?.nickname?.[0] || '?';
 
   const systemBadges = isSystemConv
-    ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
+    ? [{ type: 'SYSTEM', label: '系统', icon: 'system.svg', color: '#3B82F6', description: '系统通知' }]
     : [];
 
   const isAiRoleConv = conversation.type === 'group' && conversation.name?.startsWith('__ai_role__');
