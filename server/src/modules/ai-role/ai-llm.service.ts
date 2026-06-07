@@ -141,7 +141,8 @@ export async function generateAiReply(conversationId: string, senderId: string, 
   const globalConfig = await getGlobalConfig();
 
   // 检查触发模式（手动重新生成 messageId 为空，跳过检查）
-  if (messageId && globalConfig.aiTriggerMode !== 'always') {
+  // 私聊场景下始终回复（对方一定是在跟 AI 说话）
+  if (messageId && globalConfig.aiTriggerMode !== 'always' && conversation.type === 'group') {
     if (globalConfig.aiTriggerMode === 'mention') {
       // 仅 @提及触发
       const message = await prisma.message.findUnique({
@@ -659,6 +660,7 @@ async function smartTriggerDecision(
   try {
     // ===== 规则层1：快速信号提取 =====
     const signals = await extractSignals(aiUserId, messageId, conversationId, senderId);
+    console.log(`[SmartTrigger] 信号提取: mentioned=${signals.isMentioned}, replyToAi=${signals.isReplyToAi}, question=${signals.isQuestion}, speed=${signals.chatSpeed}, justSpoke=${signals.aiJustSpoke}, consecutive=${signals.aiConsecutiveCount}, interest=${signals.interestTriggered}, prohibited=${signals.hardProhibited}`);
 
     // 硬性禁止：直接沉默
     if (signals.hardProhibited) {
@@ -682,9 +684,12 @@ async function smartTriggerDecision(
 
     // ===== LLM 仲裁层：社交判断 =====
     const arbitration = await llmArbitration(role, signals, config);
+    console.log(`[SmartTrigger] LLM仲裁: shouldSpeak=${arbitration.shouldSpeak}, action=${arbitration.action}, tone=${arbitration.tone}, length=${arbitration.length}, delay=${arbitration.delayMs}ms, reason=${arbitration.reason}`);
 
     // ===== 规则层2：二次校验 =====
-    return validateDecision(arbitration, signals);
+    const validated = validateDecision(arbitration, signals);
+    console.log(`[SmartTrigger] 最终决策: shouldSpeak=${validated.shouldSpeak}, action=${validated.action}, delay=${validated.delayMs}ms`);
+    return validated;
   } catch {
     return silentDecision;
   }
