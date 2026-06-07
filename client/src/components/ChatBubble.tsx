@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Message } from '@biu/shared';
+import { Message, CardData } from '@biu/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -17,7 +17,7 @@ interface Props {
   memberMap?: Map<string, string>;
 }
 
-function CardMessage({ cardType, cardData }: { cardType?: string | null; cardData?: any }) {
+function CardMessage({ cardType, cardData }: { cardType?: string | null; cardData?: CardData | null }) {
   if (!cardType || !cardData) return null;
 
   if (cardType === 'welcome') {
@@ -140,7 +140,7 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry,
   const isSystem = message.sender?.isSystem;
   const isStreaming = (message as any)._isStreaming;
   const streamingReasoning = (message as any)._streamingReasoning;
-  const aiReasoning = message.cardType === 'ai_reasoning' ? (message.cardData as any)?.reasoning : null;
+  const aiReasoning = message.cardType === 'ai_reasoning' && message.cardData && 'reasoning' in message.cardData ? message.cardData.reasoning : null;
 
   // AI 角色用户不显示 AI 徽章（本身已是 AI 会话，无需额外标识）
   const senderBadges = (message.sender as any)?.username?.startsWith('ai_role_')
