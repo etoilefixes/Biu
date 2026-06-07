@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { ChatReceiveMessage } from '@biu/shared';
+import { ChatReceiveMessage, FriendRequest, StreamEvent } from '@biu/shared';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -96,7 +96,7 @@ class SocketService {
     this.socket?.on('user:offline', callback);
   }
 
-  onFriendRequest(callback: (data: any) => void) {
+  onFriendRequest(callback: (data: FriendRequest) => void) {
     this.socket?.off('friend:request');
     this.socket?.on('friend:request', callback);
   }
@@ -111,7 +111,7 @@ class SocketService {
     this.socket?.on('chat:ack', callback);
   }
 
-  onChatStream(callback: (data: { conversationId: string; type: string; delta?: string; aiUserId?: string; reasoning?: string; content?: string; message?: string }) => void) {
+  onChatStream(callback: (data: StreamEvent) => void) {
     this.socket?.off('chat:stream');
     this.socket?.on('chat:stream', callback);
   }
