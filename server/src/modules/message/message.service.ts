@@ -8,7 +8,10 @@ function parseMentions(content: string) {
   let match;
   
   while ((match = mentionPattern.exec(content)) !== null) {
-    mentions.push(match[1]);
+    // 排除 [at:all]，它由 mentionsAll 单独处理
+    if (match[1] !== 'all') {
+      mentions.push(match[1]);
+    }
   }
   
   return mentions;
