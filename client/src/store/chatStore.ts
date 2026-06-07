@@ -210,7 +210,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       _tempSender: senderId || '',
     } as any;
 
-    set((state) => ({ messages: [...state.messages, optimisticMessage] }));
+    set((state) => ({ messages: [...state.messages, optimisticMessage], lastReadMessageId: null }));
 
     get().updateConversationLastMessage(currentConversation.id, optimisticMessage);
 
@@ -295,6 +295,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (streamIndex !== -1) {
       set({
         messages: messages.map((m, i) => (i === streamIndex ? message : m)),
+        lastReadMessageId: null,
       });
       // 清理流式状态
       const newStreaming = new Map(get().streamingMessages);
@@ -317,12 +318,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         set({
           messages: messages.map((m, i) => (i === optimisticIndex ? message : m)),
+          lastReadMessageId: null,
         });
       } else {
         // Only add to messages array if it belongs to the current conversation
         const currentConvId = get().currentConversation?.id;
         if (message.conversationId === currentConvId) {
-          set((state) => ({ messages: [...state.messages, message] }));
+          set((state) => ({ messages: [...state.messages, message], lastReadMessageId: null }));
         }
       }
     }
@@ -481,7 +483,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => {
           const exists = state.messages.some((m) => m.id === `stream_${conversationId}`);
           if (exists) return state;
-          return { messages: [...state.messages, streamMsg] };
+          return { messages: [...state.messages, streamMsg], lastReadMessageId: null };
         });
       }
     } else if (type === 'content' && data.delta) {
