@@ -202,6 +202,7 @@ model AiModelConfig {
   maxTokens             Int      @default(2000) @map("max_tokens")
   contextMessageLimit   Int      @default(20) @map("context_message_limit")
   includePrivateContext Boolean  @default(false) @map("include_private_context")
+  aiTriggerMode         String   @default("always") @map("ai_trigger_mode") @db.VarChar(20)
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 

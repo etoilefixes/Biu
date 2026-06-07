@@ -458,9 +458,9 @@ export async function regenerateLastReply(conversationId: string, userId: string
     await prisma.message.delete({ where: { id: lastAiMessage.id } });
   }
 
-  // 触发重新生成
+  // 触发重新生成（手动重新生成不受触发模式限制）
   const { generateAiReply } = await import('./ai-llm.service');
-  generateAiReply(conversationId, userId).catch((err) => {
+  generateAiReply(conversationId, userId, '').catch((err) => {
     console.error('[AI Regenerate] Failed:', err);
   });
 

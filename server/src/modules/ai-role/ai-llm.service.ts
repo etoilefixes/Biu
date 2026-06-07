@@ -25,6 +25,7 @@ interface ModelConfig {
   maxTokens: number;
   contextMessageLimit: number;
   includePrivateContext: boolean;
+  aiTriggerMode: string;
 }
 
 /**
@@ -50,6 +51,7 @@ async function getGlobalConfig(): Promise<ModelConfig> {
       maxTokens: dbConfig.maxTokens,
       contextMessageLimit: (dbConfig as any).contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT,
       includePrivateContext: (dbConfig as any).includePrivateContext ?? false,
+      aiTriggerMode: (dbConfig as any).aiTriggerMode || 'always',
     };
   }
 
@@ -69,13 +71,14 @@ async function getGlobalConfig(): Promise<ModelConfig> {
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
     contextMessageLimit: DEFAULT_CONTEXT_MESSAGE_LIMIT,
     includePrivateContext: false,
+    aiTriggerMode: 'always',
   };
 }
 
 /**
  * 当用户在 AI 角色会话中发送消息后，调用此函数生成 AI 回复
  */
-export async function generateAiReply(conversationId: string, senderId: string) {
+export async function generateAiReply(conversationId: string, senderId: string, messageId: string) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
     include: {
@@ -105,6 +108,32 @@ export async function generateAiReply(conversationId: string, senderId: string) 
 
   // 获取全局配置
   const globalConfig = await getGlobalConfig();
+
+  // 检查触发模式（手动重新生成 messageId 为空，跳过检查）
+  if (messageId && globalConfig.aiTriggerMode !== 'always') {
+    if (globalConfig.aiTriggerMode === 'mention') {
+      // 仅 @提及触发
+      const message = await prisma.message.findUnique({
+        where: { id: messageId },
+        select: { mentions: true, mentionsAll: true },
+      });
+      const isMentioned = message?.mentions?.includes(aiUser.id) || message?.mentionsAll;
+      if (!isMentioned) return;
+    } else if (globalConfig.aiTriggerMode === 'smart') {
+      // 智能触发：@提及必回，否则根据内容相关性判断
+      const message = await prisma.message.findUnique({
+        where: { id: messageId },
+        select: { content: true, mentions: true, mentionsAll: true },
+      });
+      const isMentioned = message?.mentions?.includes(aiUser.id) || message?.mentionsAll;
+      if (!isMentioned) {
+        // 未被提及，用 LLM 快速判断是否需要回复
+        const shouldReply = await evaluateDesireToReply(role, message?.content || '', conversation);
+        if (!shouldReply) return;
+      }
+    }
+  }
+  // 'always' 模式或手动重新生成：总是回复
 
   // 获取最近消息作为上下文（使用可配置的条数）
   const contextLimit = globalConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
@@ -571,6 +600,66 @@ function buildSystemPrompt(role: {
   parts.push('请始终保持角色设定，不要跳出角色。');
 
   return parts.join('\n');
+}
+
+/**
+ * 智能触发评估：判断 AI 是否应该回复
+ * 模拟社交决策链：场景理解 → 关系判断 → 社交期待 → 自我动机 → 贡献判断 → 打扰判断
+ */
+async function evaluateDesireToReply(
+  role: { id: string; name: string; description: string | null; speakingStyle: string | null },
+  messageContent: string,
+  conversation: { id: string; type: string }
+): Promise<boolean> {
+  try {
+    const config = await getGlobalConfig();
+
+    const prompt = `你是"${role.name}"，一个群聊中的AI角色。现在群里有人发了一条消息，你需要快速判断自己是否应该回复。
+
+角色描述：${role.description || '无'}
+说话风格：${role.speakingStyle || '无'}
+
+消息内容："${messageContent.slice(0, 200)}"
+
+请从以下角度快速判断：
+1. 这条消息是否在跟我说话或提到我相关的话题？
+2. 我是否有独特的视角或知识可以贡献？
+3. 我的回复是否会让对话更有价值？
+4. 此时回复是否自然而不突兀？
+
+只回答 YES 或 NO。`;
+
+    const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (config.apiKey) {
+      headers['Authorization'] = `Bearer ${config.apiKey}`;
+    }
+
+    const body = {
+      model: config.chatModel,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      max_tokens: 10,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    const answer = (data.choices?.[0]?.message?.content || '').trim().toUpperCase();
+    return answer.includes('YES');
+  } catch {
+    // 评估失败时默认不回复（避免在 smart 模式下误触发）
+    return false;
+  }
 }
 
 /**

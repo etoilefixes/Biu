@@ -27,6 +27,7 @@ export async function getConfig(req: AuthRequest, res: Response) {
           maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
           contextMessageLimit: 20,
           includePrivateContext: false,
+          aiTriggerMode: 'always',
           source: 'env',
         },
       });
@@ -51,6 +52,7 @@ export async function getConfig(req: AuthRequest, res: Response) {
         maxTokens: config.maxTokens,
         contextMessageLimit: (config as any).contextMessageLimit || 20,
         includePrivateContext: (config as any).includePrivateContext ?? false,
+        aiTriggerMode: (config as any).aiTriggerMode || 'always',
         source: 'database',
       },
     });
@@ -78,6 +80,7 @@ export async function saveConfig(req: AuthRequest, res: Response) {
       maxTokens: data.maxTokens ?? 2000,
       contextMessageLimit: data.contextMessageLimit ?? 20,
       includePrivateContext: data.includePrivateContext ?? false,
+      aiTriggerMode: data.aiTriggerMode || 'always',
     };
 
     // 只在提供了新 API Key 时更新
@@ -118,6 +121,7 @@ export async function saveConfig(req: AuthRequest, res: Response) {
         maxTokens: config.maxTokens,
         contextMessageLimit: (config as any).contextMessageLimit || 20,
         includePrivateContext: (config as any).includePrivateContext ?? false,
+        aiTriggerMode: (config as any).aiTriggerMode || 'always',
       },
     });
   } catch (err: any) {

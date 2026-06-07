@@ -40,7 +40,7 @@ export function registerChatHandlers(io: Server, socket: Socket) {
       }
 
       // 异步触发 AI 角色回复（不阻塞消息发送）
-      generateAiReply(data.conversationId, socket.data.userId).catch((err) => {
+      generateAiReply(data.conversationId, socket.data.userId, message.id).catch((err) => {
         console.error('[AI Reply] Error:', err);
       });
     } catch (err: any) {

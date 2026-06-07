@@ -473,6 +473,7 @@ function AiSettingsPanel() {
   const [maxTokens, setMaxTokens] = useState(2000);
   const [contextMessageLimit, setContextMessageLimit] = useState(20);
   const [includePrivateContext, setIncludePrivateContext] = useState(false);
+  const [aiTriggerMode, setAiTriggerMode] = useState<'always' | 'mention' | 'smart'>('always');
 
   useEffect(() => {
     loadConfig();
@@ -497,6 +498,7 @@ function AiSettingsPanel() {
       setMaxTokens(data.maxTokens ?? 2000);
       setContextMessageLimit(data.contextMessageLimit ?? 20);
       setIncludePrivateContext(data.includePrivateContext ?? false);
+      setAiTriggerMode(data.aiTriggerMode || 'always');
     } catch (err: any) {
       setToast({ message: '加载配置失败', type: 'error' });
     } finally {
@@ -522,6 +524,7 @@ function AiSettingsPanel() {
         maxTokens,
         contextMessageLimit,
         includePrivateContext,
+        aiTriggerMode,
       });
       setApiKey(''); // 清空，不保留在前端
       setToast({ message: '保存成功', type: 'success' });
@@ -659,6 +662,32 @@ function AiSettingsPanel() {
               </div>
             </>
           )}
+        </div>
+      </div>
+
+      <div className="pt-3 border-t border-white/5">
+        <h3 className="text-gray-500 text-xs font-medium mb-3">AI 触发模式</h3>
+        <div className="space-y-2">
+          {[
+            { value: 'always', label: '始终回复', desc: '每条消息都触发 AI 回复' },
+            { value: 'mention', label: '@提及触发', desc: '仅在 @AI 时回复' },
+            { value: 'smart', label: '智能触发', desc: 'AI 自行判断是否需要回复' },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setAiTriggerMode(opt.value as any)}
+              className={`w-full text-left px-3 py-2 rounded-lg transition-all duration-150 ${
+                aiTriggerMode === opt.value
+                  ? 'bg-biu-primary/15 border border-biu-primary/30'
+                  : 'bg-white/5 border border-transparent hover:bg-white/8'
+              }`}
+            >
+              <p className={`text-sm font-body ${aiTriggerMode === opt.value ? 'text-biu-primary' : 'text-white'}`}>
+                {opt.label}
+              </p>
+              <p className="text-gray-600 text-[11px] font-body">{opt.desc}</p>
+            </button>
+          ))}
         </div>
       </div>
 
