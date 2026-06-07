@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Conversation, Message, LastMessage } from '@biu/shared';
+import { Conversation, Message, LastMessage, StreamEvent } from '@biu/shared';
 import api from '../services/api';
 import { socketService } from '../services/socket';
 import { useAuthStore } from './authStore';
@@ -41,7 +41,7 @@ interface ChatState {
   deleteConversation: (conversationId: string) => void;
   setTyping: (conversationId: string, userId: string) => void;
   clearTyping: (conversationId: string) => void;
-  handleStreamEvent: (data: { conversationId: string; type: string; delta?: string; aiUserId?: string; reasoning?: string; content?: string; message?: string }) => void;
+  handleStreamEvent: (data: StreamEvent) => void;
   reset: () => void;
   cleanupStaleSending: () => void;
 }
