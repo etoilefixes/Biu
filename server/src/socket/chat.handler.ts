@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { prisma } from '../config/database';
 import { redis } from '../config/redis';
 import * as messageService from '../modules/message/message.service';
-import { generateAiReply } from '../modules/ai-role/ai-llm.service';
+import { generateAiReply, resetAiConsecutiveCount } from '../modules/ai-role/ai-llm.service';
 
 export function registerChatHandlers(io: Server, socket: Socket) {
   socket.on('chat:send', async (data) => {
@@ -43,6 +43,23 @@ export function registerChatHandlers(io: Server, socket: Socket) {
       generateAiReply(data.conversationId, socket.data.userId, message.id).catch((err) => {
         console.error('[AI Reply] Error:', err);
       });
+
+      // 非 AI 用户发言时，重置 AI 连续计数
+      const conv = await prisma.conversation.findUnique({
+        where: { id: data.conversationId },
+        select: { name: true },
+      });
+      if (conv?.name?.startsWith('__ai_role__')) {
+        const roleId = conv.name.replace('__ai_role__', '');
+        const aiUsername = `ai_role_${roleId.replace(/-/g, '_')}`;
+        const aiUser = await prisma.user.findUnique({
+          where: { username: aiUsername },
+          select: { id: true },
+        });
+        if (aiUser && aiUser.id !== socket.data.userId) {
+          resetAiConsecutiveCount(data.conversationId, aiUser.id).catch(() => {});
+        }
+      }
     } catch (err: any) {
       socket.emit('chat:error', { message: err.message, conversationId: data.conversationId });
     }

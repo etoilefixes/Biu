@@ -5,9 +5,40 @@ import { ReasoningStreamParser, AiStreamChunk } from './reasoning-parser';
 const DEFAULT_CONTEXT_MESSAGE_LIMIT = 20;
 const PRIVATE_CONTEXT_MESSAGE_LIMIT = 10;
 
+// 智能触发常量
+const AI_COOLDOWN_SECONDS = 15;       // AI 回复后冷却时间
+const AI_MAX_CONSECUTIVE = 3;          // AI 最大连续回复次数
+const AI_CHAT_SPEED_WINDOW = 60;       // 群聊速度计算窗口（秒）
+const AI_FAST_CHAT_THRESHOLD = 8;      // 快速聊天阈值（条/分钟）
+
 interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+}
+
+/** 规则层1：快速信号提取结果 */
+interface SignalExtraction {
+  isMentioned: boolean;          // 是否 @提及 AI
+  isReplyToAi: boolean;         // 是否回复 AI 的消息
+  isQuestion: boolean;          // 是否是问题
+  chatSpeed: number;            // 群聊速度（条/分钟）
+  aiJustSpoke: boolean;         // AI 刚说过话
+  aiConsecutiveCount: number;   // AI 连续回复次数
+  interestTriggered: boolean;   // 是否触发兴趣/记忆/情绪
+  hardProhibited: boolean;      // 是否硬性禁止发言
+  messageContent: string;       // 消息内容
+  senderNickname: string;       // 发送者昵称
+}
+
+/** LLM 仲裁层：结构化决策输出 */
+interface ArbitrationDecision {
+  shouldSpeak: boolean;
+  action: 'reply' | 'interject' | 'emoji' | 'record_memory' | 'silence';
+  targetUser: string;
+  tone: string;
+  length: 'short' | 'medium' | 'long';
+  delayMs: number;
+  reason: string;
 }
 
 interface ModelConfig {
@@ -120,16 +151,21 @@ export async function generateAiReply(conversationId: string, senderId: string, 
       const isMentioned = message?.mentions?.includes(aiUser.id) || message?.mentionsAll;
       if (!isMentioned) return;
     } else if (globalConfig.aiTriggerMode === 'smart') {
-      // 智能触发：@提及必回，否则根据内容相关性判断
-      const message = await prisma.message.findUnique({
-        where: { id: messageId },
-        select: { content: true, mentions: true, mentionsAll: true },
-      });
-      const isMentioned = message?.mentions?.includes(aiUser.id) || message?.mentionsAll;
-      if (!isMentioned) {
-        // 未被提及，用 LLM 快速判断是否需要回复
-        const shouldReply = await evaluateDesireToReply(role, message?.content || '', conversation);
-        if (!shouldReply) return;
+      // 智能触发：完整决策链
+      const decision = await smartTriggerDecision(role, aiUser.id, messageId, conversationId, senderId, globalConfig);
+      if (!decision.shouldSpeak) return;
+
+      // 如果决策是记录记忆但不发言，只记录不回复
+      if (decision.action === 'record_memory' || decision.action === 'silence') return;
+
+      // 如果决策是表情反应，发送简短表情
+      if (decision.action === 'emoji') {
+        // 表情反应暂不实现，走正常回复流程但限制长度
+      }
+
+      // 应用延迟（模拟思考时间）
+      if (decision.delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(decision.delayMs, 5000)));
       }
     }
   }
@@ -236,6 +272,8 @@ export async function generateAiReply(conversationId: string, senderId: string, 
     } else {
       await nonStreamLLMAndReply(globalConfig, finalModel, llmMessages, temperature, maxTokens, conversationId, aiUser.id, useReasoning);
     }
+    // 更新 AI 状态（冷却时间、连续计数）
+    await updateAiState(conversationId, aiUser.id);
   } catch (err) {
     console.error('[AI Reply] Failed to generate reply:', err);
   }
@@ -603,31 +641,182 @@ function buildSystemPrompt(role: {
 }
 
 /**
- * 智能触发评估：判断 AI 是否应该回复
- * 模拟社交决策链：场景理解 → 关系判断 → 社交期待 → 自我动机 → 贡献判断 → 打扰判断
+ * 智能触发完整决策链
+ * 流程：规则层1(信号提取) → LLM仲裁层(社交判断) → 规则层2(二次校验) → 状态更新
  */
-async function evaluateDesireToReply(
-  role: { id: string; name: string; description: string | null; speakingStyle: string | null },
-  messageContent: string,
-  conversation: { id: string; type: string }
-): Promise<boolean> {
-  try {
-    const config = await getGlobalConfig();
+async function smartTriggerDecision(
+  role: { id: string; name: string; description: string | null; speakingStyle: string | null; forbiddenTopics: string | null },
+  aiUserId: string,
+  messageId: string,
+  conversationId: string,
+  senderId: string,
+  config: ModelConfig,
+): Promise<ArbitrationDecision> {
+  const silentDecision: ArbitrationDecision = {
+    shouldSpeak: false, action: 'silence', targetUser: '', tone: '', length: 'short', delayMs: 0, reason: '默认沉默',
+  };
 
-    const prompt = `你是"${role.name}"，一个群聊中的AI角色。现在群里有人发了一条消息，你需要快速判断自己是否应该回复。
+  try {
+    // ===== 规则层1：快速信号提取 =====
+    const signals = await extractSignals(aiUserId, messageId, conversationId, senderId);
+
+    // 硬性禁止：直接沉默
+    if (signals.hardProhibited) {
+      return { ...silentDecision, reason: '硬性禁止发言' };
+    }
+
+    // @提及或回复AI：直接决定发言，跳过LLM仲裁
+    if (signals.isMentioned || signals.isReplyToAi) {
+      const decision: ArbitrationDecision = {
+        shouldSpeak: true,
+        action: 'reply',
+        targetUser: signals.senderNickname,
+        tone: '友好',
+        length: signals.isQuestion ? 'medium' : 'short',
+        delayMs: signals.isMentioned ? 500 : 1500,
+        reason: signals.isMentioned ? '被@提及' : '被回复',
+      };
+      // 规则层2：即使被提及，也要检查连续发言限制
+      return validateDecision(decision, signals);
+    }
+
+    // ===== LLM 仲裁层：社交判断 =====
+    const arbitration = await llmArbitration(role, signals, config);
+
+    // ===== 规则层2：二次校验 =====
+    return validateDecision(arbitration, signals);
+  } catch {
+    return silentDecision;
+  }
+}
+
+/**
+ * 规则层1：快速信号提取
+ * 纯代码逻辑，不调用LLM，毫秒级完成
+ */
+async function extractSignals(
+  aiUserId: string,
+  messageId: string,
+  conversationId: string,
+  senderId: string,
+): Promise<SignalExtraction> {
+  const { redis } = await import('../../config/redis');
+
+  // 获取当前消息
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: { content: true, mentions: true, mentionsAll: true },
+  });
+  const messageContent = message?.content || '';
+
+  // 获取发送者昵称
+  const sender = await prisma.user.findUnique({
+    where: { id: senderId },
+    select: { nickname: true },
+  });
+  const senderNickname = sender?.nickname || '某人';
+
+  // 1. 是否明确 @提及 AI
+  const isMentioned = message?.mentions?.includes(aiUserId) || message?.mentionsAll || false;
+
+  // 2. 是否回复 AI 的消息（检查最近一条消息是否是 AI 发的）
+  const lastAiMessage = await prisma.message.findFirst({
+    where: { conversationId, senderId: aiUserId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, createdAt: true },
+  });
+  // 检查当前消息是否是对 AI 消息的回复（通过消息内容中包含 AI 角色名或紧接 AI 消息后）
+  const lastMessage = await prisma.message.findFirst({
+    where: { conversationId },
+    orderBy: { createdAt: 'desc' },
+    select: { senderId: true },
+  });
+  const isReplyToAi = lastMessage?.senderId === aiUserId && !isMentioned;
+
+  // 3. 是否是问题（简单规则：包含问号或疑问词）
+  const questionPatterns = /[？?]|怎么|什么|为什么|如何|哪|吗|呢|谁|几|多少|能不能|可以|会不会/;
+  const isQuestion = questionPatterns.test(messageContent);
+
+  // 4. 群聊速度（最近N秒内的消息数）
+  const speedWindowStart = new Date(Date.now() - AI_CHAT_SPEED_WINDOW * 1000);
+  const recentCount = await prisma.message.count({
+    where: {
+      conversationId,
+      createdAt: { gte: speedWindowStart },
+    },
+  });
+  const chatSpeed = Math.round((recentCount / AI_CHAT_SPEED_WINDOW) * 60);
+
+  // 5. AI 是否刚说过话（冷却检查）
+  const cooldownKey = `ai:cooldown:${conversationId}:${aiUserId}`;
+  const lastReplyTs = await redis.get(cooldownKey);
+  const aiJustSpoke = lastReplyTs ? (Date.now() - parseInt(lastReplyTs, 10)) < AI_COOLDOWN_SECONDS * 1000 : false;
+
+  // 6. AI 连续回复次数
+  const consecutiveKey = `ai:consecutive:${conversationId}:${aiUserId}`;
+  const aiConsecutiveCount = parseInt(await redis.get(consecutiveKey) || '0', 10);
+
+  // 7. 兴趣/记忆/情绪触发（关键词匹配）
+  const interestPatterns = /记住|别忘了|上次|之前|你说过|你答应|约定|开心|难过|生气|害怕|惊喜|感动/;
+  const interestTriggered = interestPatterns.test(messageContent);
+
+  // 8. 硬性禁止发言
+  const hardProhibited = aiConsecutiveCount >= AI_MAX_CONSECUTIVE;
+
+  return {
+    isMentioned,
+    isReplyToAi,
+    isQuestion,
+    chatSpeed,
+    aiJustSpoke,
+    aiConsecutiveCount,
+    interestTriggered,
+    hardProhibited,
+    messageContent,
+    senderNickname,
+  };
+}
+
+/**
+ * LLM 仲裁层：社交判断
+ * 输出结构化 JSON 决策
+ */
+async function llmArbitration(
+  role: { id: string; name: string; description: string | null; speakingStyle: string | null; forbiddenTopics: string | null },
+  signals: SignalExtraction,
+  config: ModelConfig,
+): Promise<ArbitrationDecision> {
+  const silentDecision: ArbitrationDecision = {
+    shouldSpeak: false, action: 'silence', targetUser: '', tone: '', length: 'short', delayMs: 0, reason: 'LLM仲裁默认沉默',
+  };
+
+  try {
+    const prompt = `你是"${role.name}"，一个群聊中的AI角色。现在群里有人发了一条消息，你需要判断自己是否应该回复，以及如何回复。
 
 角色描述：${role.description || '无'}
 说话风格：${role.speakingStyle || '无'}
 
-消息内容："${messageContent.slice(0, 200)}"
+当前消息：
+- 发送者：${signals.senderNickname}
+- 内容："${signals.messageContent.slice(0, 300)}"
 
-请从以下角度快速判断：
-1. 这条消息是否在跟我说话或提到我相关的话题？
-2. 我是否有独特的视角或知识可以贡献？
-3. 我的回复是否会让对话更有价值？
-4. 此时回复是否自然而不突兀？
+群聊状态信号：
+- 是否是问题：${signals.isQuestion ? '是' : '否'}
+- 群聊速度：${signals.chatSpeed}条/分钟（${signals.chatSpeed > AI_FAST_CHAT_THRESHOLD ? '快速' : '正常'}节奏）
+- AI刚说过话：${signals.aiJustSpoke ? '是' : '否'}
+- AI连续回复次数：${signals.aiConsecutiveCount}
+- 触发兴趣/记忆/情绪：${signals.interestTriggered ? '是' : '否'}
 
-只回答 YES 或 NO。`;
+请从以下角度判断：
+1. 场景理解：群里在聊什么话题？
+2. 关系判断：这句话跟我有没有关系？
+3. 社交期待：别人是否期待我回应？
+4. 自我动机：我有没有想参与的理由？
+5. 贡献判断：我说了会不会让对话变好？
+6. 打扰判断：我现在说话会不会突兀？
+
+请严格按以下JSON格式回复，不要输出其他内容：
+{"shouldSpeak":true/false,"action":"reply/interject/emoji/record_memory/silence","targetUser":"目标用户昵称","tone":"语气","length":"short/medium/long","delayMs":延迟毫秒数,"reason":"决策原因"}`;
 
     const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
     const headers: Record<string, string> = {
@@ -641,24 +830,115 @@ async function evaluateDesireToReply(
       model: config.chatModel,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
-      max_tokens: 10,
+      max_tokens: 200,
     };
 
     const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(10000),
     });
 
-    if (!response.ok) return false;
+    if (!response.ok) return silentDecision;
 
     const data = await response.json();
-    const answer = (data.choices?.[0]?.message?.content || '').trim().toUpperCase();
-    return answer.includes('YES');
+    const content = (data.choices?.[0]?.message?.content || '').trim();
+
+    // 解析 JSON（容错处理）
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return silentDecision;
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    return {
+      shouldSpeak: !!parsed.shouldSpeak,
+      action: ['reply', 'interject', 'emoji', 'record_memory', 'silence'].includes(parsed.action) ? parsed.action : 'silence',
+      targetUser: parsed.targetUser || '',
+      tone: parsed.tone || '友好',
+      length: ['short', 'medium', 'long'].includes(parsed.length) ? parsed.length : 'short',
+      delayMs: Math.min(Math.max(parseInt(parsed.delayMs, 10) || 0, 0), 5000),
+      reason: parsed.reason || '',
+    };
   } catch {
-    // 评估失败时默认不回复（避免在 smart 模式下误触发）
-    return false;
+    // LLM 仲裁失败时默认沉默
+    return silentDecision;
+  }
+}
+
+/**
+ * 规则层2：二次校验
+ * 冷却、频率、风险检查
+ */
+function validateDecision(
+  decision: ArbitrationDecision,
+  signals: SignalExtraction,
+): ArbitrationDecision {
+  // 如果 LLM 说要发言，但 AI 刚说过话且不是被提及，增加延迟
+  if (decision.shouldSpeak && signals.aiJustSpoke && !signals.isMentioned) {
+    decision.delayMs = Math.max(decision.delayMs, 3000);
+  }
+
+  // 如果群聊节奏很快且 AI 不是被提及，降低发言欲望
+  if (decision.shouldSpeak && signals.chatSpeed > AI_FAST_CHAT_THRESHOLD && !signals.isMentioned && !signals.isReplyToAi) {
+    // 快节奏群聊中，非提及情况下更保守
+    if (decision.action === 'interject') {
+      return { ...decision, shouldSpeak: false, action: 'silence', reason: '群聊节奏过快，插话可能突兀' };
+    }
+  }
+
+  // 如果 AI 连续发言接近上限，只允许简短回复
+  if (decision.shouldSpeak && signals.aiConsecutiveCount >= AI_MAX_CONSECUTIVE - 1) {
+    decision.length = 'short';
+    decision.reason += '（接近连续发言上限，限制长度）';
+  }
+
+  return decision;
+}
+
+/**
+ * 更新 AI 状态（冷却、连续计数）
+ * 在 AI 成功回复后调用
+ */
+async function updateAiState(conversationId: string, aiUserId: string): Promise<void> {
+  try {
+    const { redis } = await import('../../config/redis');
+
+    // 更新冷却时间戳
+    const cooldownKey = `ai:cooldown:${conversationId}:${aiUserId}`;
+    await redis.set(cooldownKey, String(Date.now()), { EX: AI_COOLDOWN_SECONDS * 3 });
+
+    // 更新连续回复计数
+    const consecutiveKey = `ai:consecutive:${conversationId}:${aiUserId}`;
+    const current = parseInt(await redis.get(consecutiveKey) || '0', 10);
+    await redis.set(consecutiveKey, String(current + 1), { EX: 300 }); // 5分钟过期
+
+    // 检查最近几条消息，如果最后一条不是 AI 发的，重置连续计数
+    const recentMessages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+      select: { senderId: true },
+    });
+    // 如果倒数第二条（AI回复前）不是 AI 发的，说明 AI 不是连续发言
+    if (recentMessages.length >= 2 && recentMessages[1].senderId !== aiUserId) {
+      await redis.set(consecutiveKey, '1', { EX: 300 });
+    }
+  } catch {
+    // 状态更新失败不影响主流程
+  }
+}
+
+/**
+ * 重置 AI 连续计数（当其他用户发言时调用）
+ */
+export async function resetAiConsecutiveCount(conversationId: string, aiUserId: string): Promise<void> {
+  try {
+    const { redis } = await import('../../config/redis');
+    const consecutiveKey = `ai:consecutive:${conversationId}:${aiUserId}`;
+    await redis.del(consecutiveKey);
+  } catch {
+    // 忽略
   }
 }
 
