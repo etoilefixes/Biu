@@ -14,6 +14,7 @@ interface Props {
   onCopy?: (content: string) => void;
   onDelete?: (id: string) => void;
   onRetry?: (id: string) => void;
+  memberMap?: Map<string, string>;
 }
 
 function CardMessage({ cardType, cardData }: { cardType?: string | null; cardData?: any }) {
@@ -131,7 +132,7 @@ function ReasoningBlock({ reasoning, isStreaming }: { reasoning: string; isStrea
   );
 }
 
-export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry }: Props) {
+export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry, memberMap }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const status = (message as any)._status;
@@ -141,8 +142,13 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
   const streamingReasoning = (message as any)._streamingReasoning;
   const aiReasoning = message.cardType === 'ai_reasoning' ? (message.cardData as any)?.reasoning : null;
 
+  // AI 角色用户不显示 AI 徽章（本身已是 AI 会话，无需额外标识）
+  const senderBadges = (message.sender as any)?.username?.startsWith('ai_role_')
+    ? message.sender?.badges?.filter((b: any) => b.type !== 'AI')
+    : message.sender?.badges;
+
   // 解析 @ 提及（富文本渲染）
-  const renderedContent = useMemo(() => renderRich(message.content), [message.content]);
+  const renderedContent = useMemo(() => renderRich(message.content, memberMap), [message.content, memberMap]);
 
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -177,7 +183,7 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
           <AvatarWithBadge
             fallback={isSystem ? '🔔' : (message.sender?.nickname?.[0] || '?')}
             isSystem={isSystem}
-            badges={message.sender?.badges}
+            badges={senderBadges}
             size="md"
             className="mr-3 mt-0.5"
           />
@@ -186,7 +192,7 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry 
           {!isSelf && message.sender?.nickname && (
             <div className="flex items-center gap-1.5 mb-1 px-1">
               <p className="text-gray-500 text-xs font-body">{message.sender.nickname}</p>
-              <UserBadge badges={message.sender?.badges} size="sm" />
+              <UserBadge badges={senderBadges} size="sm" />
             </div>
           )}
           {isCard ? (

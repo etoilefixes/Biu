@@ -70,14 +70,20 @@ export default function ConversationItem({
     ? [{ type: 'SYSTEM', label: '系统', icon: 'bell', color: '#3B82F6', description: '系统通知' }]
     : [];
 
-  const otherBadges = otherMember?.user ? otherMember.user.badges : undefined;
+  const isAiRoleConv = conversation.type === 'group' && conversation.name?.startsWith('__ai_role__');
+
+  const otherBadges = otherMember?.user
+    ? isAiRoleConv
+      ? otherMember.user.badges?.filter((b: any) => b.type !== 'AI')
+      : otherMember.user.badges
+    : undefined;
 
   const lastMsg = conversation.lastMessage as LastMessage | null | undefined;
   const isSelf = lastMsg?.senderId === currentUserId;
 
   let preview = '暂无消息';
   if (lastMsg) {
-    const formattedContent = renderPreview(lastMsg.content);
+    const formattedContent = renderPreview(lastMsg.content, conversation.members ? new Map(conversation.members.map((m: any) => [m.userId, m.nickname || m.user?.nickname])) : undefined);
     if (isSelf) {
       if (conversation.type === 'group') {
         preview = `你: ${formattedContent}`;
