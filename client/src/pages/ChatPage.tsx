@@ -254,16 +254,8 @@ export default function ChatPage() {
   const extractInputContent = (): string => {
     const el = inputRef.current;
     if (!el) return '';
-    let text = '';
-    el.childNodes.forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        // 过滤掉零宽空格（\u200B），它只用于光标定位
-        text += (node.textContent || '').replace(/\u200B/g, '');
-      } else if (node instanceof HTMLElement && node.dataset.mentionId) {
-        text += `[at:${node.dataset.mentionId}]`;
-      }
-    });
-    return text;
+    // 纯文本方案：直接取 textContent，过滤零宽空格
+    return (el.textContent || '').replace(/\u200B/g, '');
   };
 
   const handleSend = () => {
@@ -454,12 +446,11 @@ export default function ChatPage() {
     const el = inputRef.current;
     if (!el) return;
 
-    // 获取光标前的文本用于 @ 和 / 检测（仅用 Range.toString，避免遍历 childNodes）
+    // 获取光标前的文本（仅用 Range.toString，避免遍历 childNodes）
     const sel = window.getSelection();
     let textBeforeCursor = '';
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
-      // 保存当前光标位置，供 mention 插入时使用（点击下拉菜单会导致失焦）
       savedSelectionRange.current = range.cloneRange();
       const preRange = document.createRange();
       preRange.selectNodeContents(el);
@@ -467,7 +458,7 @@ export default function ChatPage() {
       textBeforeCursor = preRange.toString().replace(/\u200B/g, '');
     }
 
-    // 检测斜杠命令
+    // 斜杠命令检测（同步，无防抖）
     const lastSlash = textBeforeCursor.lastIndexOf('/');
     if (lastSlash !== -1) {
       const textAfterSlash = textBeforeCursor.slice(lastSlash + 1);
@@ -485,7 +476,7 @@ export default function ChatPage() {
       setCommandFilter('');
     }
 
-    // 检测 @ 提及（防抖：避免快速输入时频繁 setState）
+    // @ 提及检测（防抖 100ms：减少快速输入时的 setState 调用）
     if (mentionDebounceRef.current) clearTimeout(mentionDebounceRef.current);
     mentionDebounceRef.current = setTimeout(() => {
       const lastAt = textBeforeCursor.lastIndexOf('@');
@@ -503,7 +494,7 @@ export default function ChatPage() {
         setShowMentionDropdown(false);
         setMentionSearch('');
       }
-    }, 30);
+    }, 100);
   }, []);
   
   // 选择要 @ 的用户 → 插入 mention chip
@@ -511,32 +502,45 @@ export default function ChatPage() {
     const el = inputRef.current;
     if (!el) return;
 
-    // 使用保存的光标位置（点击下拉按钮会导致 contenteditable 失焦）
+    // 使用保存的光标位置（点击下拉菜单会导致 contenteditable 失焦）
     const savedRange = savedSelectionRange.current;
     if (!savedRange) return;
-
     const range = savedRange.cloneRange();
 
     // 在光标前文本中查找最后一个 @
     const preRange = document.createRange();
     preRange.selectNodeContents(el);
     preRange.setEnd(range.startContainer, range.startOffset);
-    const textBefore = preRange.toString();
+    const textBefore = preRange.toString().replace(/\u200B/g, '');
     const atPos = textBefore.lastIndexOf('@');
 
     if (atPos === -1) return;
 
-    // 设置 range 起点到 @ 位置
+    // 定位到 @ 字符的起始位置
     let charCount = 0;
     let startNode: Node | null = null;
     let startOffset = 0;
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       const node = walker.currentNode;
-      const len = (node.textContent || '').length;
+      const len = (node.textContent || '').replace(/\u200B/g, '').length;
       if (charCount + len > atPos) {
         startNode = node;
-        startOffset = atPos - charCount;
+        // 需要考虑零宽空格的偏移
+        const rawText = node.textContent || '';
+        let adjustedOffset = 0;
+        let visibleCount = 0;
+        for (let i = 0; i < rawText.length; i++) {
+          if (rawText[i] !== '\u200B') {
+            if (visibleCount === atPos - charCount) {
+              adjustedOffset = i;
+              break;
+            }
+            visibleCount++;
+          }
+        }
+        if (visibleCount < atPos - charCount) adjustedOffset = rawText.length;
+        startOffset = adjustedOffset;
         break;
       }
       charCount += len;
@@ -545,27 +549,16 @@ export default function ChatPage() {
 
     range.setStart(startNode, startOffset);
 
-    // 创建 mention chip
-    const chip = document.createElement('span');
-    chip.contentEditable = 'false';
-    chip.dataset.mentionId = userId;
-    chip.dataset.mentionDisplay = displayName;
-    chip.className = 'mention-chip';
-    chip.textContent = `@${displayName}`;
-
-    // 替换 @xxx 为 chip
+    // 插入纯文本 [at:userId] 替代 @xxx
+    const mentionText = `[at:${userId}]`;
     range.deleteContents();
-    range.insertNode(chip);
+    const textNode = document.createTextNode(mentionText + ' ');
+    range.insertNode(textNode);
 
-    // chip 后插入 "空格 + 零宽空格"
-    // 空格提供视觉间距，\u200B 给光标一个可靠的文本节点落点
-    const spacer = document.createTextNode(' \u200B');
-    chip.after(spacer);
-
-    // 先聚焦输入框，再将光标定位到 spacer 末尾
+    // 将光标移到插入文本之后
     el.focus();
     const newRange = document.createRange();
-    newRange.setStart(spacer, spacer.length);
+    newRange.setStart(textNode, mentionText.length + 1);
     newRange.collapse(true);
     const newSel = window.getSelection();
     newSel?.removeAllRanges();

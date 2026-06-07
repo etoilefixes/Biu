@@ -204,39 +204,47 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry,
                 <ReasoningBlock reasoning={streamingReasoning || aiReasoning} isStreaming={!!streamingReasoning} />
               )}
               <div className="text-sm break-words font-body leading-relaxed chat-markdown">
-                {renderedContent.length === 1 && typeof renderedContent[0] === 'string' ? (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeHighlight]}
-                    components={{
-                      pre: ({ children, node, ...props }: any) => (
-                        <div className="relative group/code">
-                          <pre {...props} className="chat-pre-block">{children}</pre>
-                          <button
-                            onClick={() => {
-                              const codeEl = node?.querySelector?.('code')?.textContent || '';
-                              navigator.clipboard.writeText(codeEl);
-                            }}
-                            className="absolute top-2 right-2 px-2 py-1 rounded-md bg-white/10 text-gray-400 text-[10px] font-body opacity-0 group-hover/code:opacity-100 hover:bg-white/20 transition-all"
-                          >
-                            复制
-                          </button>
-                        </div>
-                      ),
-                      code: ({ className, children, ...props }: any) => {
-                        const isInline = !className;
-                        if (isInline) {
-                          return <code className="chat-inline-code" {...props}>{children}</code>;
-                        }
-                        return <code className={className} {...props}>{children}</code>;
-                      },
-                    }}
-                  >
-                    {renderedContent[0]}
-                  </ReactMarkdown>
-                ) : (
-                  renderedContent
-                )}
+                {renderedContent.map((part, i) => {
+                  if (typeof part === 'string') {
+                    // 空字符串跳过
+                    if (!part) return null;
+                    // 纯文本部分走 ReactMarkdown
+                    return (
+                      <ReactMarkdown
+                        key={i}
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeHighlight]}
+                        components={{
+                          pre: ({ children, node, ...props }: any) => (
+                            <div className="relative group/code">
+                              <pre {...props} className="chat-pre-block">{children}</pre>
+                              <button
+                                onClick={() => {
+                                  const codeEl = node?.querySelector?.('code')?.textContent || '';
+                                  navigator.clipboard.writeText(codeEl);
+                                }}
+                                className="absolute top-2 right-2 px-2 py-1 rounded-md bg-white/10 text-gray-400 text-[10px] font-body opacity-0 group-hover/code:opacity-100 hover:bg-white/20 transition-all"
+                              >
+                                复制
+                              </button>
+                            </div>
+                          ),
+                          code: ({ className, children, ...props }: any) => {
+                            const isInline = !className;
+                            if (isInline) {
+                              return <code className="chat-inline-code" {...props}>{children}</code>;
+                            }
+                            return <code className={className} {...props}>{children}</code>;
+                          },
+                        }}
+                      >
+                        {part}
+                      </ReactMarkdown>
+                    );
+                  }
+                  // @ 提及 span 直接渲染
+                  return part;
+                })}
                 {/* 流式打字光标 */}
                 {isStreaming && (
                   <span className="inline-block w-1.5 h-4 ml-0.5 bg-biu-primary/70 animate-pulse-subtle align-text-bottom rounded-sm" />
