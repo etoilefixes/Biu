@@ -51,7 +51,9 @@ export default function ConversationItem({
 
   const displayName =
     conversation.type === 'group'
-      ? conversation.name
+      ? conversation.name?.startsWith('__ai_role__')
+        ? conversation.members.find((m) => m.user?.username?.startsWith('ai_role_'))?.user?.nickname || 'AI 助手'
+        : conversation.name
       : isSystemConv
         ? 'Biu团队'
         : otherMember?.user?.nickname || '未知用户';
@@ -59,7 +61,9 @@ export default function ConversationItem({
   const avatarFallback = isSystemConv
     ? '🔔'
     : conversation.type === 'group'
-      ? conversation.name?.[0] || '群'
+      ? conversation.name?.startsWith('__ai_role__')
+        ? conversation.members.find((m) => m.user?.username?.startsWith('ai_role_'))?.user?.nickname?.[0] || '🤖'
+        : conversation.name?.[0] || '群'
       : otherMember?.user?.nickname?.[0] || '?';
 
   const systemBadges = isSystemConv

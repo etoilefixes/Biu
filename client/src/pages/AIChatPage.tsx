@@ -284,7 +284,12 @@ export default function AIChatPage() {
 
   const convDisplayName = (conv: typeof currentConversation) => {
     if (!conv) return '';
-    if (conv.type === 'group') return conv.name;
+    if (conv.type === 'group') {
+      if (conv.name?.startsWith('__ai_role__')) {
+        return conv.members.find((m) => m.user?.username?.startsWith('ai_role_'))?.user?.nickname || 'AI 助手';
+      }
+      return conv.name;
+    }
     const other = conv.members.find((m) => m.userId !== user?.id);
     if (other?.user?.isSystem) return 'Biu团队';
     return other?.user?.nickname || '未知用户';
