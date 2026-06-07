@@ -65,6 +65,40 @@ const pendingAcks = new Map<string, PendingAck>();
 const ACK_TIMEOUT_MS = 10000;
 const MAX_RETRY_COUNT = 1;
 
+// 流式输出节流：合并 delta 后统一更新，减少渲染次数
+const STREAM_BATCH_MS = 50;
+const streamBuffers = new Map<string, { content: string; reasoning: string; timer: ReturnType<typeof setTimeout> | null }>();
+
+function flushStreamBuffer(conversationId: string) {
+  const buffer = streamBuffers.get(conversationId);
+  if (!buffer) return;
+
+  const { content, reasoning } = buffer;
+  streamBuffers.delete(conversationId);
+
+  const currentConvId = useChatStore.getState().currentConversation?.id;
+
+  // 更新 streamingMessages
+  const newStreaming = new Map(useChatStore.getState().streamingMessages);
+  const current = newStreaming.get(conversationId) || { content: '', reasoning: '', isStreaming: true };
+  current.content = content || current.content;
+  current.reasoning = reasoning || current.reasoning;
+  newStreaming.set(conversationId, current);
+  useChatStore.setState({ streamingMessages: newStreaming });
+
+  // 更新占位消息
+  if (conversationId === currentConvId) {
+    useChatStore.setState((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.id !== `stream_${conversationId}`) return m;
+        const updated = { ...m, content: current.content } as any;
+        if (reasoning) updated._streamingReasoning = current.reasoning;
+        return updated;
+      }),
+    }));
+  }
+}
+
 function clearPendingAck(tempId: string) {
   const pending = pendingAcks.get(tempId);
   if (pending) {
@@ -451,43 +485,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
         });
       }
     } else if (type === 'content' && data.delta) {
-      // 内容增量
+      // 内容增量 — 节流合并
+      const buffer = streamBuffers.get(conversationId) || { content: '', reasoning: '', timer: null };
       const newStreaming = new Map(get().streamingMessages);
       const current = newStreaming.get(conversationId) || { content: '', reasoning: '', isStreaming: true };
       current.content += data.delta;
       newStreaming.set(conversationId, current);
-      set({ streamingMessages: newStreaming });
+      buffer.content = current.content;
 
-      // 更新占位消息的内容
-      if (conversationId === currentConvId) {
-        set((state) => ({
-          messages: state.messages.map((m) =>
-            m.id === `stream_${conversationId}`
-              ? { ...m, content: current.content }
-              : m
-          ),
-        }));
+      if (!buffer.timer) {
+        buffer.timer = setTimeout(() => flushStreamBuffer(conversationId), STREAM_BATCH_MS);
       }
+      streamBuffers.set(conversationId, buffer);
+      set({ streamingMessages: newStreaming });
     } else if (type === 'reasoning' && data.delta) {
-      // 推理增量
+      // 推理增量 — 节流合并
+      const buffer = streamBuffers.get(conversationId) || { content: '', reasoning: '', timer: null };
       const newStreaming = new Map(get().streamingMessages);
       const current = newStreaming.get(conversationId) || { content: '', reasoning: '', isStreaming: true };
       current.reasoning += data.delta;
       newStreaming.set(conversationId, current);
-      set({ streamingMessages: newStreaming });
+      buffer.reasoning = current.reasoning;
 
-      // 更新占位消息的推理内容
-      if (conversationId === currentConvId) {
-        set((state) => ({
-          messages: state.messages.map((m) =>
-            m.id === `stream_${conversationId}`
-              ? { ...m, _streamingReasoning: current.reasoning } as any
-              : m
-          ),
-        }));
+      if (!buffer.timer) {
+        buffer.timer = setTimeout(() => flushStreamBuffer(conversationId), STREAM_BATCH_MS);
       }
+      streamBuffers.set(conversationId, buffer);
+      set({ streamingMessages: newStreaming });
     } else if (type === 'done') {
-      // 流式结束：移除流式状态，等待 chat:message 替换占位消息
+      // 流式结束：刷新缓冲区并移除流式状态
+      const buffer = streamBuffers.get(conversationId);
+      if (buffer?.timer) {
+        clearTimeout(buffer.timer);
+        streamBuffers.delete(conversationId);
+      }
+      flushStreamBuffer(conversationId);
+
       const newStreaming = new Map(get().streamingMessages);
       const streamData = newStreaming.get(conversationId);
       newStreaming.delete(conversationId);
@@ -506,7 +539,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }));
       }
     } else if (type === 'error') {
-      // 流式错误
+      // 流式错误：清除缓冲区
+      const buffer = streamBuffers.get(conversationId);
+      if (buffer?.timer) {
+        clearTimeout(buffer.timer);
+        streamBuffers.delete(conversationId);
+      }
+
       const newStreaming = new Map(get().streamingMessages);
       newStreaming.delete(conversationId);
       set({ streamingMessages: newStreaming });

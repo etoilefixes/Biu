@@ -278,18 +278,40 @@ body {
 .chat-markdown li {
   margin: 0.15em 0;
 }
+.chat-markdown li > ul,
+.chat-markdown li > ol {
+  margin: 0.1em 0;
+}
 .chat-markdown blockquote {
   border-left: 3px solid rgba(255, 255, 255, 0.25);
   padding-left: 0.75em;
   margin: 0.5em 0;
   opacity: 0.85;
 }
-.chat-markdown code {
+.chat-markdown .chat-inline-code {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.88em;
-  padding: 0.15em 0.35em;
+  padding: 0.15em 0.4em;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2b3ff;
+}
+.chat-markdown .chat-pre-block {
+  margin: 0.5em 0;
+  padding: 0.8em 1em;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-x: auto;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+.chat-markdown .chat-pre-block code {
+  padding: 0;
+  background: none;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: inherit;
+  line-height: inherit;
 }
 .chat-markdown pre {
   margin: 0.5em 0;
@@ -326,6 +348,10 @@ body {
 .chat-markdown a {
   text-decoration: underline;
   text-underline-offset: 2px;
+  color: #7dd3fc;
+}
+.chat-markdown a:hover {
+  color: #93e0fd;
 }
 .chat-markdown img {
   max-width: 100%;
@@ -333,6 +359,55 @@ body {
 }
 .chat-markdown del {
   opacity: 0.6;
+}
+.chat-markdown strong {
+  color: #f0f0f0;
+  font-weight: 600;
+}
+.chat-markdown em {
+  color: #d4d4d8;
+}
+
+/* highlight.js 暗色主题覆盖 */
+.chat-markdown .hljs {
+  background: transparent !important;
+  color: #d4d4d8;
+}
+.chat-markdown .hljs-keyword,
+.chat-markdown .hljs-selector-tag { color: #c586c0; }
+.chat-markdown .hljs-string,
+.chat-markdown .hljs-addition { color: #ce9178; }
+.chat-markdown .hljs-number,
+.chat-markdown .hljs-literal { color: #b5cea8; }
+.chat-markdown .hljs-comment,
+.chat-markdown .hljs-quote { color: #6a9955; font-style: italic; }
+.chat-markdown .hljs-function .hljs-title,
+.chat-markdown .hljs-title.function_ { color: #dcdcaa; }
+.chat-markdown .hljs-variable,
+.chat-markdown .hljs-attr { color: #9cdcfe; }
+.chat-markdown .hljs-type,
+.chat-markdown .hljs-built_in { color: #4ec9b0; }
+.chat-markdown .hljs-params { color: #d4d4d8; }
+.chat-markdown .hljs-meta { color: #569cd6; }
+.chat-markdown .hljs-deletion { color: #ce9178; background: rgba(206, 145, 120, 0.1); }
+.chat-markdown .hljs-symbol,
+.chat-markdown .hljs-bullet { color: #d7ba7d; }
+.chat-markdown .hljs-link { color: #7dd3fc; text-decoration: underline; }
+
+/* 思维链样式 */
+.chat-markdown-reasoning {
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: #9ca3af;
+}
+
+/* 流式输出光标动画 */
+@keyframes streamCursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.stream-cursor {
+  animation: streamCursor 1s ease-in-out infinite;
 }
 
 .context-menu {
