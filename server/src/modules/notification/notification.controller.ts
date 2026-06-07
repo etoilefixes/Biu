@@ -3,7 +3,7 @@ import * as notificationService from './notification.service';
 
 export async function list(req: Request, res: Response) {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).userId;
     const settings = await notificationService.listByUser(userId);
     res.json({ data: settings });
   } catch (err: any) {
@@ -13,7 +13,7 @@ export async function list(req: Request, res: Response) {
 
 export async function upsert(req: Request, res: Response) {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).userId;
     const { conversationId, muted, showPreview } = req.body;
 
     if (muted !== undefined && typeof muted !== 'boolean') {
@@ -38,7 +38,7 @@ export async function upsert(req: Request, res: Response) {
 
 export async function remove(req: Request, res: Response) {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).userId;
     const { id } = req.params;
     await notificationService.remove(userId, id as string);
     res.json({ data: { success: true } });
