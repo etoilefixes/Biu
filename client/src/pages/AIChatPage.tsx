@@ -295,6 +295,12 @@ export default function AIChatPage() {
     return other?.user?.nickname || '未知用户';
   };
 
+  // 构建 userId→nickname 映射，用于 @提及 渲染
+  const memberMap = useMemo(() => {
+    if (!currentConversation?.members) return undefined;
+    return new Map(currentConversation.members.map((m: any) => [m.userId, m.nickname || m.user?.nickname]));
+  }, [currentConversation?.members]);
+
   return (
     <div className="flex h-screen bg-biu-dark">
       <div className="w-72 glass border-r border-white/5 flex flex-col">
@@ -420,6 +426,7 @@ export default function AIChatPage() {
                       onCopy={handleCopy}
                       onDelete={handleDeleteMessage}
                       onRetry={handleRetryMessage}
+                      memberMap={memberMap}
                     />
                   </React.Fragment>
                 );
