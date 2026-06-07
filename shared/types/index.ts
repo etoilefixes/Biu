@@ -63,11 +63,30 @@ export interface Message {
   content: string;
   type: 'text' | 'image' | 'file' | 'card';
   cardType?: string | null;
-  cardData?: any;
+  cardData?: CardData | null;
   mentions?: string[] | null;
   mentionsAll?: boolean;
   createdAt: string;
   sender?: User;
+}
+
+export interface CardData {
+  title?: string;
+  body?: string;
+  link?: string;
+  reasoning?: string;
+}
+
+export type StreamEventType = 'start' | 'content' | 'reasoning' | 'done' | 'error';
+
+export interface StreamEvent {
+  conversationId: string;
+  type: StreamEventType;
+  delta?: string;
+  aiUserId?: string;
+  reasoning?: string;
+  content?: string;
+  message?: string;
 }
 
 export interface ConversationRead {
