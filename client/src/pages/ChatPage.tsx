@@ -100,6 +100,20 @@ export default function ChatPage() {
   // @ 功能
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionSearch, setMentionSearch] = useState('');
+  const mentionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // useMemo 缓存 @ 下拉菜单过滤结果，避免每次渲染都 .filter()
+  const filteredMentionMembers = useMemo(() => {
+    if (!currentConversation?.members) return [];
+    const search = mentionSearch.toLowerCase();
+    return currentConversation.members
+      .filter(m => m.userId !== user?.id)
+      .filter(m => {
+        if (!search) return true;
+        const nickname = m.user?.nickname || m.nickname || '';
+        const username = m.user?.username || '';
+        return nickname.toLowerCase().includes(search) || username.toLowerCase().includes(search);
+      });
+  }, [currentConversation?.members, mentionSearch, user?.id]);
   const inputRef = useRef<HTMLDivElement>(null);
   const savedSelectionRange = useRef<Range | null>(null);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
@@ -436,23 +450,13 @@ export default function ChatPage() {
   };
   
   // 处理输入框变化，检测 @ 触发（contenteditable）
-  const handleInput = () => {
+  const handleInput = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
 
-    // 提取纯文本用于 @ 和 / 检测
-    let plainText = '';
-    el.childNodes.forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        plainText += node.textContent || '';
-      } else if (node instanceof HTMLElement && node.dataset.mentionId) {
-        plainText += `@${node.dataset.mentionDisplay || '用户'} `;
-      }
-    });
-
-    // 获取光标前的文本用于 @ 和 / 检测
+    // 获取光标前的文本用于 @ 和 / 检测（仅用 Range.toString，避免遍历 childNodes）
     const sel = window.getSelection();
-    let textBeforeCursor = plainText;
+    let textBeforeCursor = '';
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
       // 保存当前光标位置，供 mention 插入时使用（点击下拉菜单会导致失焦）
@@ -481,23 +485,26 @@ export default function ChatPage() {
       setCommandFilter('');
     }
 
-    // 检测 @ 提及
-    const lastAt = textBeforeCursor.lastIndexOf('@');
-    if (lastAt !== -1) {
-      const textAfter = textBeforeCursor.slice(lastAt + 1);
-      const beforeAt = lastAt === 0 || textBeforeCursor[lastAt - 1] === ' ';
-      if (beforeAt && !textAfter.includes(' ') && !textAfter.includes('\n')) {
-        setShowMentionDropdown(true);
-        setMentionSearch(textAfter);
+    // 检测 @ 提及（防抖：避免快速输入时频繁 setState）
+    if (mentionDebounceRef.current) clearTimeout(mentionDebounceRef.current);
+    mentionDebounceRef.current = setTimeout(() => {
+      const lastAt = textBeforeCursor.lastIndexOf('@');
+      if (lastAt !== -1) {
+        const textAfter = textBeforeCursor.slice(lastAt + 1);
+        const beforeAt = lastAt === 0 || textBeforeCursor[lastAt - 1] === ' ';
+        if (beforeAt && !textAfter.includes(' ') && !textAfter.includes('\n')) {
+          setShowMentionDropdown(true);
+          setMentionSearch(textAfter);
+        } else {
+          setShowMentionDropdown(false);
+          setMentionSearch('');
+        }
       } else {
         setShowMentionDropdown(false);
         setMentionSearch('');
       }
-    } else {
-      setShowMentionDropdown(false);
-      setMentionSearch('');
-    }
-  };
+    }, 30);
+  }, []);
   
   // 选择要 @ 的用户 → 插入 mention chip
   const handleSelectMention = (userId: string, displayName: string) => {
@@ -835,6 +842,12 @@ export default function ChatPage() {
   const myMemberRole = currentConversation?.members?.find((m: any) => m.userId === user?.id)?.role || 'member';
   const isGroupAdmin = myMemberRole === 'admin';
   const canManage = isGroupOwner || isGroupAdmin;
+
+  // 构建 userId→nickname 映射，用于 @提及 渲染
+  const memberMap = useMemo(() => {
+    if (!currentConversation?.members) return undefined;
+    return new Map(currentConversation.members.map((m: any) => [m.userId, m.nickname || m.user?.nickname]));
+  }, [currentConversation?.members]);
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
@@ -1465,6 +1478,7 @@ export default function ChatPage() {
                       onCopy={handleCopy}
                       onDelete={handleDeleteMessage}
                       onRetry={handleRetryMessage}
+                      memberMap={memberMap}
                     />
                   </React.Fragment>
                 );
@@ -1594,39 +1608,29 @@ export default function ChatPage() {
                           </button>
                         )}
                         {/* 群成员列表 */}
-                        {currentConversation.members
-                          .filter(m => m.userId !== user?.id)
-                          .filter(m => {
-                            const nickname = m.user?.nickname || m.nickname || '';
-                            const username = m.user?.username || '';
-                            const search = mentionSearch.toLowerCase();
-                            return !mentionSearch || 
-                              nickname.toLowerCase().includes(search) || 
-                              username.toLowerCase().includes(search);
-                          })
-                          .map(member => (
+                        {filteredMentionMembers.map(member => {
+                          const initial = (member.user?.nickname || member.nickname || '用户')[0];
+                          return (
                             <button
                               key={member.userId}
                               onClick={() => handleSelectMention(member.userId, member.user?.nickname || '用户')}
                               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition text-left"
                             >
-                              <AvatarWithBadge
-                                fallback={(member.user?.nickname || '用户')[0]}
-                                badges={member.user?.badges}
-                                size="sm"
-                              />
-                              <div>
-                                <p className="text-white text-sm font-medium">
+                              <div className="w-8 h-8 rounded-lg bg-biu-primary/15 flex items-center justify-center text-biu-primary text-xs font-bold shrink-0">
+                                {initial}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-white text-sm font-medium truncate">
                                   @{member.nickname || member.user?.nickname || '用户'}
                                 </p>
-                                <p className="text-gray-500 text-xs">
+                                <p className="text-gray-500 text-xs truncate">
                                   {member.user?.biuId}
                                 </p>
                               </div>
                             </button>
-                          ))
-                        }
-                        {currentConversation.members.filter(m => m.userId !== user?.id).length === 0 && (
+                          );
+                        })}
+                        {filteredMentionMembers.length === 0 && (
                           <p className="text-gray-500 text-xs text-center py-4">没有可提及的用户</p>
                         )}
                       </div>
