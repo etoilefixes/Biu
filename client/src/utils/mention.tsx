@@ -34,14 +34,24 @@ export function renderRich(content: string, memberMap?: Map<string, string>): Re
 
     const userId = match[1];
     const nickname = memberMap?.get(userId);
+    const mentionLabel = userId === 'all' ? '@全体成员' : nickname ? `@${nickname}` : `@${userId}`;
+
+    // 检查 [at:xxx] 后面是否紧跟空格，如果没有则补一个
+    const afterMatch = content[match.index + match[0].length];
+    const needSpace = afterMatch && afterMatch !== ' ' && afterMatch !== '\n';
+
     parts.push(
       <span
         key={`mention-${match.index}`}
         style={{ color: '#ef4444', fontWeight: 600 }}
       >
-        {userId === 'all' ? '@全体成员' : nickname ? `@${nickname}` : `@${userId}`}
+        {mentionLabel}
       </span>
     );
+
+    if (needSpace) {
+      parts.push(' ');
+    }
 
     lastIndex = match.index + match[0].length;
   }

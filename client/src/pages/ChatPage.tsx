@@ -301,11 +301,29 @@ export default function ChatPage() {
   const extractInputContent = (): string => {
     const el = inputRef.current;
     if (!el) return '';
-    let text = (el.textContent || '').replace(/\u200B/g, '');
-    // 将 @displayName 替换为 [at:userId]
+
+    // 使用 innerHTML 解析，正确处理 <br> 和 <div> 产生的换行
+    let html = el.innerHTML;
+
+    // 将 @displayName 替换为 [at:userId]（在 HTML 层面替换，避免 textContent 丢失结构）
     mentionMapRef.current.forEach((userId, displayName) => {
-      text = text.split(`@${displayName}`).join(`[at:${userId}]`);
+      // displayName 可能被 HTML 实体编码，用文本层面的替换
+      html = html.split(`@${displayName}`).join(`[at:${userId}]`);
     });
+
+    // 将 <br> 转为换行符
+    html = html.replace(/<br\s*\/?>/gi, '\n');
+    // 将 </div><div> 边界转为换行（contenteditable 换行会产生 <div>）
+    html = html.replace(/<\/div>\s*<div[^>]*>/gi, '\n');
+    // 去掉所有剩余 HTML 标签
+    html = html.replace(/<[^>]+>/g, '');
+    // 解码 HTML 实体
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = html;
+    let text = textarea.value;
+    // 清理零宽空格和不间断空格
+    text = text.replace(/\u200B/g, '');
+    text = text.replace(/\u00A0/g, ' ');
     return text;
   };
 
@@ -594,7 +612,8 @@ export default function ChatPage() {
     const mentionText = `@${displayName}`;
     mentionMapRef.current.set(displayName, userId);
     range.deleteContents();
-    const textNode = document.createTextNode(mentionText + ' ');
+    // 插入 mention 文本 + 不间断空格（\u00A0），防止 contenteditable 吞掉普通空格
+    const textNode = document.createTextNode(mentionText + '\u00A0');
     range.insertNode(textNode);
 
     // 将光标移到插入文本之后
