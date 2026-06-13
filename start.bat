@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title Biu Launcher
 
 set "ROOT=%~dp0"
@@ -19,24 +20,43 @@ if not exist "%ROOT%\client" (
     pause & exit /b 1
 )
 
-echo  [0/2] Releasing ports 3001 and 5173...
-
-:: 释放端口 3001
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3001 " ^| findstr "LISTENING"') do (
-    echo  Killing PID %%a on port 3001...
-    taskkill /F /PID %%a >nul 2>&1
+:: 检查端口 3000
+set "PORT3000_PID="
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000 " ^| findstr "LISTENING"') do (
+    set "PORT3000_PID=%%a"
 )
 
-:: 释放端口 5173
+if defined PORT3000_PID (
+    echo  [!] Port 3000 is occupied by PID %PORT3000_PID%
+    set /p "RELEASE3000=  Release port 3000? (Y/N): "
+    if /i "!RELEASE3000!"=="Y" (
+        taskkill /F /PID %PORT3000_PID% >nul 2>&1
+        echo  Port 3000 released.
+    ) else (
+        echo  Skipped releasing port 3000.
+    )
+    echo.
+)
+
+:: 检查端口 5173
+set "PORT5173_PID="
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5173 " ^| findstr "LISTENING"') do (
-    echo  Killing PID %%a on port 5173...
-    taskkill /F /PID %%a >nul 2>&1
+    set "PORT5173_PID=%%a"
 )
 
-echo  Ports released.
-echo.
+if defined PORT5173_PID (
+    echo  [!] Port 5173 is occupied by PID %PORT5173_PID%
+    set /p "RELEASE5173=  Release port 5173? (Y/N): "
+    if /i "!RELEASE5173!"=="Y" (
+        taskkill /F /PID %PORT5173_PID% >nul 2>&1
+        echo  Port 5173 released.
+    ) else (
+        echo  Skipped releasing port 5173.
+    )
+    echo.
+)
 
-echo  [1/2] Starting backend (port 3001)...
+echo  [1/2] Starting backend (port 3000)...
 start "Biu-Backend" cmd /k "cd /d "%ROOT%\server" && npm run dev"
 
 echo  Waiting 3s for backend...
@@ -46,7 +66,7 @@ echo  [2/2] Starting frontend (port 5173)...
 start "Biu-Frontend" cmd /k "cd /d "%ROOT%\client" && npm run dev"
 
 echo.
-echo  Backend : http://localhost:3001
+echo  Backend : http://localhost:3000
 echo  Frontend: http://localhost:5173
 echo.
 

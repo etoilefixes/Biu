@@ -80,7 +80,7 @@ def api_login(username, password):
     """调用 Biu API 登录，返回 (token, user_info) 或 (None, error_msg)"""
     try:
         body = json.dumps({"account": username, "password": password})
-        conn = http.client.HTTPConnection("localhost", 3001, timeout=5)
+        conn = http.client.HTTPConnection("localhost", 3000, timeout=5)
         conn.request("POST", "/api/auth/login", body, {"Content-Type": "application/json"})
         resp = conn.getresponse()
         data = json.loads(resp.read().decode("utf-8"))

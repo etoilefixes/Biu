@@ -29,7 +29,7 @@ class SocketService {
 
     this.disconnect();
 
-    this.socket = io('http://localhost:3001', {
+    this.socket = io('http://localhost:3000', {
       auth: { token },
       transports: ['websocket'],
       reconnection: true,
