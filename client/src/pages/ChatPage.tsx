@@ -364,25 +364,12 @@ export default function ChatPage() {
         setSelectedCommandIndex((prev) => Math.max(prev - 1, 0));
         return;
       }
-      if (e.key === 'Tab') {
+      if (e.key === 'Tab' || e.key === 'Enter') {
         e.preventDefault();
         const selected = filteredCommands[selectedCommandIndex];
         if (selected) {
-          // 替换输入框中的 /xxx 为完整命令
+          // 预选：填入完整命令到输入框，不直接执行
           replaceSlashCommandInput(selected.command);
-        }
-        return;
-      }
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        const selected = filteredCommands[selectedCommandIndex];
-        if (selected) {
-          const text = extractInputContent().trim();
-          if (text === selected.command) {
-            executeCommand(selected);
-          } else {
-            replaceSlashCommandInput(selected.command);
-          }
         }
         return;
       }
@@ -1559,7 +1546,7 @@ export default function ChatPage() {
                       {filteredCommands.map((cmd, index) => (
                         <button
                           key={cmd.command}
-                          onClick={() => executeCommand(cmd)}
+                          onClick={() => replaceSlashCommandInput(cmd.command)}
                           className={`w-full px-3 py-2.5 flex items-center gap-3 text-left transition-all duration-150 ${
                             index === selectedCommandIndex
                               ? 'bg-biu-primary/15'
