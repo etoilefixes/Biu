@@ -5,7 +5,8 @@ import { useFriendStore } from '../store/friendStore';
 import { useChatStore } from '../store/chatStore';
 import { useNotificationStore } from '../store/notificationStore';
 import Toast from './Toast';
-import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, IconCrown, IconRobot } from './Icons';
+import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, IconCrown, IconRobot, IconPlus, IconTrash, IconRefresh, IconCheck } from './Icons';
+import GlassCard from './GlassCard';
 import AvatarWithBadge from './AvatarWithBadge';
 import UserBadge from './UserBadge';
 import AiRoleModal from './AiRoleModal';
@@ -454,51 +455,73 @@ function AiSettingsPanel() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string; models?: string[] } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
 
-  // 表单状态
-  const [provider, setProvider] = useState('openai-compatible');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [chatModel, setChatModel] = useState('');
-  const [reasoningModel, setReasoningModel] = useState('');
+  // 模型库
+  const [models, setModels] = useState<any[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
+  // 用途选择
+  const [chatModelId, setChatModelId] = useState<string>('');
+  const [reasoningModelId, setReasoningModelId] = useState<string>('');
+  const [arbitrationModelId, setArbitrationModelId] = useState<string>('');
+
+  // 行为配置
   const [reasoningEnabled, setReasoningEnabled] = useState(false);
   const [reasoningMode, setReasoningMode] = useState('none');
   const [reasoningDisplay, setReasoningDisplay] = useState('hidden');
   const [reasoningEffort, setReasoningEffort] = useState('high');
   const [streamingEnabled, setStreamingEnabled] = useState(true);
-  const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(2000);
   const [contextMessageLimit, setContextMessageLimit] = useState(20);
   const [includePrivateContext, setIncludePrivateContext] = useState(false);
   const [aiTriggerMode, setAiTriggerMode] = useState<'always' | 'mention' | 'smart'>('always');
 
+  // 模型编辑弹窗
+  const [showModelForm, setShowModelForm] = useState(false);
+  const [editingModel, setEditingModel] = useState<any>(null);
+  const [modelForm, setModelForm] = useState({
+    name: '',
+    provider: 'openai-compatible',
+    baseUrl: '',
+    apiKey: '',
+    modelName: '',
+    maxTokens: 2000,
+    temperature: 0.7,
+  });
+  const [modelFormSaving, setModelFormSaving] = useState(false);
+  const [remoteModels, setRemoteModels] = useState<string[]>([]);
+  const [remoteModelsLoading, setRemoteModelsLoading] = useState(false);
+
+  // 测试状态
+  const [testingModelId, setTestingModelId] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ modelId: string; success: boolean; message: string; models?: string[] } | null>(null);
+
   useEffect(() => {
-    loadConfig();
+    loadData();
   }, []);
 
-  const loadConfig = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const res: any = await api.get('/ai-roles/config/model');
-      const data = res.data;
-      setConfig(data);
-      setProvider(data.provider || 'openai-compatible');
-      setBaseUrl(data.baseUrl || '');
-      setChatModel(data.chatModel || '');
-      setReasoningModel(data.reasoningModel || '');
-      setReasoningEnabled(data.reasoningEnabled || false);
-      setReasoningMode(data.reasoningMode || 'none');
-      setReasoningDisplay(data.reasoningDisplay || 'hidden');
-      setReasoningEffort(data.reasoningEffort || 'high');
-      setStreamingEnabled(data.streamingEnabled ?? true);
-      setTemperature(data.temperature ?? 0.7);
-      setMaxTokens(data.maxTokens ?? 2000);
-      setContextMessageLimit(data.contextMessageLimit ?? 20);
-      setIncludePrivateContext(data.includePrivateContext ?? false);
-      setAiTriggerMode(data.aiTriggerMode || 'always');
+      const [configRes, modelsRes]: any[] = await Promise.all([
+        api.get('/ai-roles/config/model'),
+        api.get('/ai-roles/models'),
+      ]);
+      const cfg = configRes.data ?? configRes;
+      const mdlList = modelsRes.data ?? modelsRes;
+      setConfig(cfg);
+      setModels(Array.isArray(mdlList) ? mdlList : []);
+      setChatModelId(cfg.chatModel?.id || '');
+      setReasoningModelId(cfg.reasoningModel?.id || '');
+      setArbitrationModelId(cfg.arbitrationModel?.id || '');
+      setReasoningEnabled(cfg.reasoningEnabled || false);
+      setReasoningMode(cfg.reasoningMode || 'none');
+      setReasoningDisplay(cfg.reasoningDisplay || 'hidden');
+      setReasoningEffort(cfg.reasoningEffort || 'high');
+      setStreamingEnabled(cfg.streamingEnabled ?? true);
+      setContextMessageLimit(cfg.contextMessageLimit ?? 20);
+      setIncludePrivateContext(cfg.includePrivateContext ?? false);
+      setAiTriggerMode(cfg.aiTriggerMode || 'always');
     } catch (err: any) {
       setToast({ message: '加载配置失败', type: 'error' });
     } finally {
@@ -506,29 +529,41 @@ function AiSettingsPanel() {
     }
   };
 
+  const loadModels = async () => {
+    try {
+      setModelsLoading(true);
+      const res: any = await api.get('/ai-roles/models');
+      const data = res.data ?? res;
+      setModels(Array.isArray(data) ? data : []);
+    } catch {
+      setToast({ message: '加载模型列表失败', type: 'error' });
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
   const handleSave = async () => {
+    if (!chatModelId) {
+      setToast({ message: '请选择聊天模型', type: 'error' });
+      return;
+    }
     try {
       setSaving(true);
       await api.put('/ai-roles/config/model', {
-        provider,
-        baseUrl,
-        apiKey: apiKey || undefined,
-        chatModel,
-        reasoningModel: reasoningModel || null,
+        chatModelId,
+        reasoningModelId: reasoningModelId || null,
+        arbitrationModelId: arbitrationModelId || null,
         reasoningEnabled,
         reasoningMode,
         reasoningDisplay,
         reasoningEffort,
         streamingEnabled,
-        temperature,
-        maxTokens,
         contextMessageLimit,
         includePrivateContext,
         aiTriggerMode,
       });
-      setApiKey(''); // 清空，不保留在前端
       setToast({ message: '保存成功', type: 'success' });
-      await loadConfig();
+      await loadData();
     } catch (err: any) {
       setToast({ message: err.message || '保存失败', type: 'error' });
     } finally {
@@ -536,20 +571,112 @@ function AiSettingsPanel() {
     }
   };
 
-  const handleTest = async () => {
+  // 获取远程模型列表
+  const fetchRemoteModels = async (baseUrl: string, apiKey: string) => {
+    if (!baseUrl.trim()) {
+      setRemoteModels([]);
+      return;
+    }
     try {
-      setTesting(true);
-      setTestResult(null);
-      const res: any = await api.post('/ai-roles/config/test', {
-        provider,
-        baseUrl,
-        apiKey,
+      setRemoteModelsLoading(true);
+      const res: any = await api.post('/ai-roles/models/fetch-remote', {
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey || undefined,
       });
-      setTestResult(res.data);
-    } catch (err: any) {
-      setTestResult({ success: false, message: err.message || '测试失败' });
+      const data = res.data ?? res;
+      if (data.success && Array.isArray(data.models)) {
+        setRemoteModels(data.models);
+      } else {
+        setRemoteModels([]);
+      }
+    } catch {
+      setRemoteModels([]);
     } finally {
-      setTesting(false);
+      setRemoteModelsLoading(false);
+    }
+  };
+
+  // 模型 CRUD
+  const openAddModel = () => {
+    setEditingModel(null);
+    setModelForm({ name: '', provider: 'openai-compatible', baseUrl: '', apiKey: '', modelName: '', maxTokens: 2000, temperature: 0.7 });
+    setRemoteModels([]);
+    setShowModelForm(true);
+  };
+
+  const openEditModel = (m: any) => {
+    setEditingModel(m);
+    setModelForm({
+      name: m.name || '',
+      provider: m.provider || 'openai-compatible',
+      baseUrl: m.baseUrl || '',
+      apiKey: '',
+      modelName: m.modelName || '',
+      maxTokens: m.maxTokens ?? 2000,
+      temperature: m.temperature ?? 0.7,
+    });
+    // 编辑时自动获取远程模型列表
+    fetchRemoteModels(m.baseUrl || '', '');
+    setShowModelForm(true);
+  };
+
+  const handleModelFormSave = async () => {
+    if (!modelForm.name.trim() || !modelForm.modelName.trim() || !modelForm.baseUrl.trim()) {
+      setToast({ message: '请填写名称、接口地址和模型标识', type: 'error' });
+      return;
+    }
+    try {
+      setModelFormSaving(true);
+      const body: any = {
+        name: modelForm.name.trim(),
+        provider: modelForm.provider,
+        baseUrl: modelForm.baseUrl.trim(),
+        modelName: modelForm.modelName.trim(),
+        maxTokens: modelForm.maxTokens,
+        temperature: modelForm.temperature,
+      };
+      if (modelForm.apiKey) body.apiKey = modelForm.apiKey;
+      if (editingModel) {
+        await api.put(`/ai-roles/models/${editingModel.id}`, body);
+        setToast({ message: '模型已更新', type: 'success' });
+      } else {
+        await api.post('/ai-roles/models', body);
+        setToast({ message: '模型已添加', type: 'success' });
+      }
+      setShowModelForm(false);
+      await loadModels();
+    } catch (err: any) {
+      setToast({ message: err.message || '保存模型失败', type: 'error' });
+    } finally {
+      setModelFormSaving(false);
+    }
+  };
+
+  const handleDeleteModel = async (m: any) => {
+    if (!confirm(`确定删除模型「${m.name}」？`)) return;
+    try {
+      await api.delete(`/ai-roles/models/${m.id}`);
+      setToast({ message: '模型已删除', type: 'success' });
+      if (chatModelId === m.id) setChatModelId('');
+      if (reasoningModelId === m.id) setReasoningModelId('');
+      if (arbitrationModelId === m.id) setArbitrationModelId('');
+      await loadModels();
+    } catch (err: any) {
+      setToast({ message: err.message || '删除失败', type: 'error' });
+    }
+  };
+
+  const handleTestModel = async (m: any) => {
+    try {
+      setTestingModelId(m.id);
+      setTestResult(null);
+      const res: any = await api.post(`/ai-roles/models/${m.id}/test`);
+      const data = res.data ?? res;
+      setTestResult({ modelId: m.id, success: data.success, message: data.message, models: data.models });
+    } catch (err: any) {
+      setTestResult({ modelId: m.id, success: false, message: err.message || '测试失败' });
+    } finally {
+      setTestingModelId(null);
     }
   };
 
@@ -557,59 +684,267 @@ function AiSettingsPanel() {
     return <div className="flex items-center justify-center py-12"><p className="text-gray-500 text-sm font-body">加载中...</p></div>;
   }
 
+  const providerLabels: Record<string, string> = {
+    'openai-compatible': 'OpenAI',
+    deepseek: 'DeepSeek',
+    qwen: '通义千问',
+    ollama: 'Ollama',
+  };
+
   return (
     <div className="space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      {/* 模型库管理 */}
       <div>
-        <h3 className="text-gray-500 text-xs font-medium mb-3">服务商</h3>
-        <select
-          value={provider}
-          onChange={(e) => setProvider(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
-        >
-          <option value="openai-compatible" className="bg-biu-dark">OpenAI Compatible</option>
-          <option value="deepseek" className="bg-biu-dark">DeepSeek</option>
-          <option value="qwen" className="bg-biu-dark">通义千问</option>
-          <option value="ollama" className="bg-biu-dark">Ollama (本地)</option>
-        </select>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-gray-500 text-xs font-medium">模型库</h3>
+          <button
+            onClick={openAddModel}
+            className="flex items-center gap-1 text-biu-primary text-xs font-body hover:text-biu-primary-dim transition"
+          >
+            <IconPlus size={14} /> 添加模型
+          </button>
+        </div>
+
+        {models.length === 0 ? (
+          <p className="text-gray-600 text-xs font-body text-center py-4">暂无模型，请点击上方添加</p>
+        ) : (
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            {models.map((m) => (
+              <GlassCard key={m.id} className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white text-sm font-body truncate">{m.name}</p>
+                    <p className="text-gray-500 text-[11px] font-body">
+                      {providerLabels[m.provider] || m.provider} · {m.modelName}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => handleTestModel(m)}
+                      disabled={testingModelId === m.id}
+                      className="p-1 rounded-md hover:bg-white/10 transition text-gray-400 hover:text-biu-primary disabled:opacity-30"
+                      title="测试连接"
+                    >
+                      <IconRefresh size={14} className={testingModelId === m.id ? 'animate-spin' : ''} />
+                    </button>
+                    <button
+                      onClick={() => openEditModel(m)}
+                      className="p-1 rounded-md hover:bg-white/10 transition text-gray-400 hover:text-biu-primary"
+                      title="编辑"
+                    >
+                      <IconEdit size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteModel(m)}
+                      className="p-1 rounded-md hover:bg-white/10 transition text-gray-400 hover:text-red-400"
+                      title="删除"
+                    >
+                      <IconTrash size={14} />
+                    </button>
+                  </div>
+                </div>
+                {testResult && testResult.modelId === m.id && (
+                  <div className={`mt-2 p-2 rounded-lg text-xs font-body ${testResult.success ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                    {testResult.message}
+                    {testResult.models && testResult.models.length > 0 && (
+                      <div className="mt-1 text-gray-500">
+                        可用模型: {testResult.models.slice(0, 5).join(', ')}{testResult.models.length > 5 ? '...' : ''}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </GlassCard>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div>
-        <label className="text-gray-500 text-xs font-medium mb-1 block">接口地址 (Base URL)</label>
-        <input
-          type="text"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="https://api.deepseek.com/v1"
-          className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
-        />
+      {/* 模型编辑/添加弹窗 */}
+      {showModelForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowModelForm(false)}>
+          <div onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+          <GlassCard strong className="w-80 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-white text-sm font-medium font-body">{editingModel ? '编辑模型' : '添加模型'}</h3>
+              <button onClick={() => setShowModelForm(false)} className="text-gray-400 hover:text-white transition"><IconX size={16} /></button>
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">名称</label>
+              <input
+                type="text"
+                value={modelForm.name}
+                onChange={(e) => setModelForm({ ...modelForm, name: e.target.value })}
+                placeholder="如：DeepSeek Chat"
+                className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+              />
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">服务商</label>
+              <select
+                value={modelForm.provider}
+                onChange={(e) => setModelForm({ ...modelForm, provider: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
+              >
+                <option value="openai-compatible" className="bg-biu-dark">OpenAI Compatible</option>
+                <option value="deepseek" className="bg-biu-dark">DeepSeek</option>
+                <option value="qwen" className="bg-biu-dark">通义千问</option>
+                <option value="ollama" className="bg-biu-dark">Ollama (本地)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">接口地址 (Base URL)</label>
+              <input
+                type="text"
+                value={modelForm.baseUrl}
+                onChange={(e) => setModelForm({ ...modelForm, baseUrl: e.target.value })}
+                placeholder="https://api.deepseek.com/v1"
+                className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+              />
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">
+                API Key {editingModel?.hasApiKey && <span className="text-biu-primary">(已配置)</span>}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={modelForm.apiKey}
+                  onChange={(e) => setModelForm({ ...modelForm, apiKey: e.target.value })}
+                  placeholder={editingModel?.hasApiKey ? '••••••••（留空保持不变）' : '输入 API Key'}
+                  className="flex-1 px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+                />
+                <button
+                  type="button"
+                  onClick={() => fetchRemoteModels(modelForm.baseUrl, modelForm.apiKey)}
+                  disabled={remoteModelsLoading || !modelForm.baseUrl.trim()}
+                  className="px-3 py-2 rounded-lg glass-input text-biu-primary text-xs font-body hover:bg-white/10 transition disabled:opacity-30 whitespace-nowrap"
+                  title="获取远程模型列表"
+                >
+                  {remoteModelsLoading ? '...' : '获取'}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs font-medium mb-1 block">
+                模型列表
+                {remoteModelsLoading && <span className="text-biu-primary ml-1">加载中...</span>}
+                {!remoteModelsLoading && remoteModels.length > 0 && <span className="text-gray-600 ml-1">({remoteModels.length} 个)</span>}
+              </label>
+              {remoteModels.length > 0 ? (
+                <select
+                  value={remoteModels.includes(modelForm.modelName) ? modelForm.modelName : '__custom__'}
+                  onChange={(e) => {
+                    if (e.target.value !== '__custom__') {
+                      setModelForm({ ...modelForm, modelName: e.target.value });
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
+                >
+                  {!remoteModels.includes(modelForm.modelName) && (
+                    <option value="__custom__" className="bg-biu-dark text-gray-500">{modelForm.modelName || '自定义...'}</option>
+                  )}
+                  {remoteModels.map((m) => (
+                    <option key={m} value={m} className="bg-biu-dark">{m}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={modelForm.modelName}
+                  onChange={(e) => setModelForm({ ...modelForm, modelName: e.target.value })}
+                  placeholder="填写 URL 和 Key 后自动获取，或手动输入"
+                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+                />
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-gray-500 text-xs font-medium mb-1 block">最大回复长度</label>
+                <input
+                  type="number"
+                  value={modelForm.maxTokens}
+                  onChange={(e) => setModelForm({ ...modelForm, maxTokens: parseInt(e.target.value) || 2000 })}
+                  min={100}
+                  max={32000}
+                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body"
+                />
+              </div>
+              <div>
+                <label className="text-gray-500 text-xs font-medium mb-1 block">
+                  创造性: {modelForm.temperature.toFixed(1)}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1.5"
+                  step="0.1"
+                  value={modelForm.temperature}
+                  onChange={(e) => setModelForm({ ...modelForm, temperature: parseFloat(e.target.value) })}
+                  className="w-full accent-biu-primary mt-2"
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleModelFormSave}
+              disabled={modelFormSaving}
+              className="w-full py-2 rounded-xl bg-biu-primary text-biu-dark text-sm font-body font-500 hover:bg-biu-primary-dim transition disabled:opacity-30"
+            >
+              {modelFormSaving ? '保存中...' : (editingModel ? '更新模型' : '添加模型')}
+            </button>
+          </GlassCard>
+          </div>
+        </div>
+      )}
+
+      {/* 用途选择 */}
+      <div className="pt-3 border-t border-white/5">
+        <h3 className="text-gray-500 text-xs font-medium mb-3">模型用途</h3>
+        <div className="space-y-3">
+          <div>
+            <label className="text-gray-500 text-xs font-medium mb-1 block">聊天模型 <span className="text-red-400">*</span></label>
+            <select
+              value={chatModelId}
+              onChange={(e) => setChatModelId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
+            >
+              <option value="" className="bg-biu-dark text-gray-500">请选择聊天模型</option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id} className="bg-biu-dark">{m.name} ({m.modelName})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-gray-500 text-xs font-medium mb-1 block">推理模型 <span className="text-gray-600 text-[10px]">可选，空则使用聊天模型</span></label>
+            <select
+              value={reasoningModelId}
+              onChange={(e) => setReasoningModelId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
+            >
+              <option value="" className="bg-biu-dark text-gray-500">使用聊天模型</option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id} className="bg-biu-dark">{m.name} ({m.modelName})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-gray-500 text-xs font-medium mb-1 block">仲裁模型 <span className="text-gray-600 text-[10px]">可选，空则使用聊天模型</span></label>
+            <select
+              value={arbitrationModelId}
+              onChange={(e) => setArbitrationModelId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
+            >
+              <option value="" className="bg-biu-dark text-gray-500">使用聊天模型</option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id} className="bg-biu-dark">{m.name} ({m.modelName})</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
-      <div>
-        <label className="text-gray-500 text-xs font-medium mb-1 block">
-          API Key {config?.hasApiKey && <span className="text-biu-primary">(已配置)</span>}
-        </label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={config?.hasApiKey ? '••••••••（留空保持不变）' : '输入 API Key'}
-          className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
-        />
-      </div>
-
-      <div>
-        <label className="text-gray-500 text-xs font-medium mb-1 block">默认聊天模型</label>
-        <input
-          type="text"
-          value={chatModel}
-          onChange={(e) => setChatModel(e.target.value)}
-          placeholder="deepseek-chat"
-          className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
-        />
-      </div>
-
+      {/* 思考模型 */}
       <div className="pt-3 border-t border-white/5">
         <h3 className="text-gray-500 text-xs font-medium mb-3">思考模型</h3>
         <div className="space-y-3">
@@ -627,16 +962,6 @@ function AiSettingsPanel() {
           </div>
           {reasoningEnabled && (
             <>
-              <div>
-                <label className="text-gray-500 text-xs font-medium mb-1 block">思考模型名称</label>
-                <input
-                  type="text"
-                  value={reasoningModel}
-                  onChange={(e) => setReasoningModel(e.target.value)}
-                  placeholder="留空则使用默认聊天模型"
-                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
-                />
-              </div>
               <div>
                 <label className="text-gray-500 text-xs font-medium mb-1 block">推理强度 (reasoning_effort)</label>
                 <select
@@ -665,6 +990,7 @@ function AiSettingsPanel() {
         </div>
       </div>
 
+      {/* AI 触发模式 */}
       <div className="pt-3 border-t border-white/5">
         <h3 className="text-gray-500 text-xs font-medium mb-3">AI 触发模式</h3>
         <div className="space-y-2">
@@ -691,6 +1017,7 @@ function AiSettingsPanel() {
         </div>
       </div>
 
+      {/* 上下文配置 */}
       <div className="pt-3 border-t border-white/5">
         <h3 className="text-gray-500 text-xs font-medium mb-3">上下文配置</h3>
         <div className="space-y-3">
@@ -728,72 +1055,20 @@ function AiSettingsPanel() {
         </div>
       </div>
 
+      {/* 流式输出 */}
       <div className="pt-3 border-t border-white/5">
-        <h3 className="text-gray-500 text-xs font-medium mb-3">高级参数</h3>
-        <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <div>
-            <label className="text-gray-500 text-xs font-medium mb-1 block">
-              创造性 (Temperature): {temperature.toFixed(1)}
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="1.5"
-              step="0.1"
-              value={temperature}
-              onChange={(e) => setTemperature(parseFloat(e.target.value))}
-              className="w-full accent-biu-primary"
-            />
-            <div className="flex justify-between text-[10px] text-gray-600 font-body mt-0.5">
-              <span>精确</span>
-              <span>创造</span>
-            </div>
+            <p className="text-white text-sm font-body">流式输出</p>
+            <p className="text-gray-600 text-[11px] font-body">逐字输出回复（暂未实现）</p>
           </div>
-          <div>
-            <label className="text-gray-500 text-xs font-medium mb-1 block">最大回复长度 (maxTokens)</label>
-            <input
-              type="number"
-              value={maxTokens}
-              onChange={(e) => setMaxTokens(parseInt(e.target.value) || 2000)}
-              min={100}
-              max={8000}
-              className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body"
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-white text-sm font-body">流式输出</p>
-              <p className="text-gray-600 text-[11px] font-body">逐字输出回复（暂未实现）</p>
-            </div>
-            <button
-              onClick={() => setStreamingEnabled(!streamingEnabled)}
-              className={`w-10 h-6 rounded-full transition-all duration-200 relative ${streamingEnabled ? 'bg-biu-primary' : 'bg-white/10'}`}
-            >
-              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${streamingEnabled ? 'left-5' : 'left-1'}`} />
-            </button>
-          </div>
+          <button
+            onClick={() => setStreamingEnabled(!streamingEnabled)}
+            className={`w-10 h-6 rounded-full transition-all duration-200 relative ${streamingEnabled ? 'bg-biu-primary' : 'bg-white/10'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${streamingEnabled ? 'left-5' : 'left-1'}`} />
+          </button>
         </div>
-      </div>
-
-      {/* 连接测试 */}
-      <div className="pt-3 border-t border-white/5">
-        <button
-          onClick={handleTest}
-          disabled={testing || !baseUrl}
-          className="w-full py-2 rounded-lg bg-white/5 text-gray-300 text-sm font-body hover:bg-white/10 transition disabled:opacity-30"
-        >
-          {testing ? '测试中...' : '测试连接'}
-        </button>
-        {testResult && (
-          <div className={`mt-2 p-2 rounded-lg text-xs font-body ${testResult.success ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-            {testResult.message}
-            {testResult.models && testResult.models.length > 0 && (
-              <div className="mt-1 text-gray-500">
-                可用模型: {testResult.models.slice(0, 5).join(', ')}{testResult.models.length > 5 ? '...' : ''}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 保存 */}
@@ -804,10 +1079,6 @@ function AiSettingsPanel() {
       >
         {saving ? '保存中...' : '保存配置'}
       </button>
-
-      {config?.source === 'env' && (
-        <p className="text-gray-600 text-[11px] font-body text-center">当前配置来自环境变量，保存后将存入数据库</p>
-      )}
     </div>
   );
 }
