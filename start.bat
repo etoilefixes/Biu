@@ -20,17 +20,17 @@ if not exist "%ROOT%\client" (
     pause & exit /b 1
 )
 
-:: 检查端口 3000
+:: Check port 3000
 set "PORT3000_PID="
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000 " ^| findstr "LISTENING"') do (
     set "PORT3000_PID=%%a"
 )
 
 if defined PORT3000_PID (
-    echo  [!] Port 3000 is occupied by PID %PORT3000_PID%
+    echo  [!] Port 3000 is occupied by PID !PORT3000_PID!
     set /p "RELEASE3000=  Release port 3000? (Y/N): "
     if /i "!RELEASE3000!"=="Y" (
-        taskkill /F /PID %PORT3000_PID% >nul 2>&1
+        taskkill /F /PID !PORT3000_PID! >nul 2>&1
         echo  Port 3000 released.
     ) else (
         echo  Skipped releasing port 3000.
@@ -38,17 +38,17 @@ if defined PORT3000_PID (
     echo.
 )
 
-:: 检查端口 5173
+:: Check port 5173
 set "PORT5173_PID="
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5173 " ^| findstr "LISTENING"') do (
     set "PORT5173_PID=%%a"
 )
 
 if defined PORT5173_PID (
-    echo  [!] Port 5173 is occupied by PID %PORT5173_PID%
+    echo  [!] Port 5173 is occupied by PID !PORT5173_PID!
     set /p "RELEASE5173=  Release port 5173? (Y/N): "
     if /i "!RELEASE5173!"=="Y" (
-        taskkill /F /PID %PORT5173_PID% >nul 2>&1
+        taskkill /F /PID !PORT5173_PID! >nul 2>&1
         echo  Port 5173 released.
     ) else (
         echo  Skipped releasing port 5173.
