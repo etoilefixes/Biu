@@ -1,14 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { socketService } from './services/socket';
 import ErrorBoundary from './components/ErrorBoundary';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import ChatPage from './pages/ChatPage';
-import AIChatPage from './pages/AIChatPage';
-import AppLayout from './layouts/AppLayout';
-import AILayout from './layouts/AILayout';
+
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const AIChatPage = lazy(() => import('./pages/AIChatPage'));
+const AppLayout = lazy(() => import('./layouts/AppLayout'));
+const AILayout = lazy(() => import('./layouts/AILayout'));
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -28,35 +29,37 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          
-          <Route
-            element={
-              <PrivateRoute>
-                <AILayout />
-              </PrivateRoute>
-            }
-          >
-            <Route path="/ai-chat" element={<AIChatPage />} />
-          </Route>
-          
-          <Route
-            element={
-              <PrivateRoute>
-                <AppLayout />
-              </PrivateRoute>
-            }
-          >
-            <Route path="/chat" element={<ChatPage />} />
-          </Route>
-          
-          <Route 
-            path="*" 
-            element={<Navigate to={isAuthenticated ? (user?.username === 'biu_ai' ? '/ai-chat' : '/chat') : '/login'} />} 
-          />
-        </Routes>
+        <Suspense fallback={<div className="flex items-center justify-center h-screen bg-biu-dark text-gray-500 text-sm">加载中...</div>}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            
+            <Route
+              element={
+                <PrivateRoute>
+                  <AILayout />
+                </PrivateRoute>
+              }
+            >
+              <Route path="/ai-chat" element={<AIChatPage />} />
+            </Route>
+            
+            <Route
+              element={
+                <PrivateRoute>
+                  <AppLayout />
+                </PrivateRoute>
+              }
+            >
+              <Route path="/chat" element={<ChatPage />} />
+            </Route>
+            
+            <Route 
+              path="*" 
+              element={<Navigate to={isAuthenticated ? (user?.username === 'biu_ai' ? '/ai-chat' : '/chat') : '/login'} />} 
+            />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </ErrorBoundary>
   );

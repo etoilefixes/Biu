@@ -8,6 +8,10 @@ import AvatarWithBadge from './AvatarWithBadge';
 import { renderRich } from '../utils/mention';
 import { formatExactTime } from '../utils/time';
 
+// 缓存插件实例，避免每次渲染都创建新实例
+const remarkPlugins = [remarkGfm];
+const rehypePlugins = [rehypeHighlight];
+
 /** 根据系统消息的 action 和 cardData 生成展示文本 */
 function getSystemMessageText(cardType: string | null, cardData: SystemCardData | null): string {
   if (!cardData) return '';
@@ -251,8 +255,8 @@ export default React.memo(function ChatBubble({ message, isSelf, onCopy, onDelet
                     return (
                       <ReactMarkdown
                         key={i}
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeHighlight]}
+                        remarkPlugins={remarkPlugins}
+                        rehypePlugins={rehypePlugins}
                         components={{
                           pre: ({ children, node, ...props }: any) => (
                             <div className="relative group/code">

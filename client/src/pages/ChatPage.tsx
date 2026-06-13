@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
@@ -11,7 +11,6 @@ import ConversationItem from '../components/ConversationItem';
 import ChatBubble from '../components/ChatBubble';
 import TimeSeparator from '../components/TimeSeparator';
 import NewMessageDivider from '../components/NewMessageDivider';
-import EmojiPicker from '../components/EmojiPicker';
 import Toast from '../components/Toast';
 import GlassCard from '../components/GlassCard';
 import UserBadge from '../components/UserBadge';
@@ -19,6 +18,9 @@ import AvatarWithBadge from '../components/AvatarWithBadge';
 import { formatSeparatorLabel, shouldShowSeparator } from '../utils/time';
 import { IconSearch, IconSend, IconChat, IconX, IconCheck, IconAddFriend, IconGroup, IconEmoji, IconPlus, IconMore, IconUsers, IconSettings, IconEdit, IconTrash, IconAnnouncement, IconRobot, IconRefresh, IconHelpCircle, IconEraser } from '../components/Icons';
 import AiRoleModal from '../components/AiRoleModal';
+
+// EmojiPicker 懒加载（emoji-mart ~500KB，只在需要时加载）
+const LazyEmojiPicker = React.lazy(() => import('../components/EmojiPicker'));
 
 interface SlashCommand {
   command: string;
@@ -1558,26 +1560,28 @@ export default function ChatPage() {
                     <IconEmoji size={14} />
                   </button>
                   {showEmojiPicker && (
-                    <EmojiPicker
-                      onSelect={(emoji) => {
-                        const el = inputRef.current;
-                        if (el) {
-                          el.focus();
-                          const sel = window.getSelection();
-                          if (sel && sel.rangeCount > 0) {
-                            const range = sel.getRangeAt(0);
-                            range.deleteContents();
-                            range.insertNode(document.createTextNode(emoji));
-                            range.collapse(false);
-                          } else {
-                            el.appendChild(document.createTextNode(emoji));
+                    <Suspense fallback={<div className="absolute bottom-full left-0 mb-2 z-50 glass-strong rounded-xl p-4 text-gray-500 text-xs">加载表情...</div>}>
+                      <LazyEmojiPicker
+                        onSelect={(emoji) => {
+                          const el = inputRef.current;
+                          if (el) {
+                            el.focus();
+                            const sel = window.getSelection();
+                            if (sel && sel.rangeCount > 0) {
+                              const range = sel.getRangeAt(0);
+                              range.deleteContents();
+                              range.insertNode(document.createTextNode(emoji));
+                              range.collapse(false);
+                            } else {
+                              el.appendChild(document.createTextNode(emoji));
+                            }
                           }
-                        }
-                        setShowEmojiPicker(false);
-                        handleInput();
-                      }}
-                      onClose={() => setShowEmojiPicker(false)}
-                    />
+                          setShowEmojiPicker(false);
+                          handleInput();
+                        }}
+                        onClose={() => setShowEmojiPicker(false)}
+                      />
+                    </Suspense>
                   )}
                 </div>
               </div>

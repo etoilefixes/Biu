@@ -66,6 +66,9 @@ export default function AIChatPage() {
   const [clearing, setClearing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const newMessageDividerRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 过滤命令列表
@@ -109,10 +112,37 @@ export default function AIChatPage() {
   }, []);
 
   useEffect(() => {
-    if (lastReadMessageId && newMessageDividerRef.current) {
-      newMessageDividerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const prevCount = prevMessageCountRef.current;
+    const currentCount = messages.length;
+    prevMessageCountRef.current = currentCount;
+
+    // 切换会话（消息从0变为有数据）
+    if (prevCount === 0 && currentCount > 0) {
+      shouldAutoScrollRef.current = true;
+    }
+
+    if (shouldAutoScrollRef.current) {
+      if (lastReadMessageId && newMessageDividerRef.current) {
+        newMessageDividerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+      if (prevCount > 0) {
+        shouldAutoScrollRef.current = false;
+      }
+      return;
+    }
+
+    // 收到新消息时：判断是否在底部附近
+    if (currentCount > prevCount) {
+      const container = messagesContainerRef.current;
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        if (isNearBottom) {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
     }
   }, [messages, lastReadMessageId]);
 
@@ -217,6 +247,7 @@ export default function AIChatPage() {
     }
     sendMessage(input.trim(), 'text', user?.id);
     setInput('');
+    shouldAutoScrollRef.current = true;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -405,7 +436,7 @@ export default function AIChatPage() {
             <div className="h-14 glass-strong flex items-center px-6 border-b border-white/[0.06]">
               <h2 className="text-white font-display font-600 text-sm tracking-wide">{convDisplayName(currentConversation)}</h2>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-4">
               {messages.map((msg, index) => {
                 const prevMsg = index > 0 ? messages[index - 1] : null;
                 const showSep = shouldShowSeparator(msg.createdAt, prevMsg?.createdAt ?? null);
