@@ -101,6 +101,8 @@ export default function ChatPage() {
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionSearch, setMentionSearch] = useState('');
   const mentionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 记录输入框中的 @ 提及映射：displayName → userId，发送时替换为 [at:userId]
+  const mentionMapRef = useRef<Map<string, string>>(new Map());
   // useMemo 缓存 @ 下拉菜单过滤结果，避免每次渲染都 .filter()
   const filteredMentionMembers = useMemo(() => {
     if (!currentConversation?.members) return [];
@@ -254,8 +256,12 @@ export default function ChatPage() {
   const extractInputContent = (): string => {
     const el = inputRef.current;
     if (!el) return '';
-    // 纯文本方案：直接取 textContent，过滤零宽空格
-    return (el.textContent || '').replace(/\u200B/g, '');
+    let text = (el.textContent || '').replace(/\u200B/g, '');
+    // 将 @displayName 替换为 [at:userId]
+    mentionMapRef.current.forEach((userId, displayName) => {
+      text = text.split(`@${displayName}`).join(`[at:${userId}]`);
+    });
+    return text;
   };
 
   const handleSend = () => {
@@ -284,11 +290,13 @@ export default function ChatPage() {
     if (inputRef.current) {
       inputRef.current.innerHTML = '';
     }
+    mentionMapRef.current.clear();
   };
 
   const executeCommand = async (cmd: SlashCommand) => {
     setShowCommandPalette(false);
     if (inputRef.current) inputRef.current.innerHTML = '';
+    mentionMapRef.current.clear();
 
     switch (cmd.command) {
       case '/clear':
@@ -549,8 +557,9 @@ export default function ChatPage() {
 
     range.setStart(startNode, startOffset);
 
-    // 插入纯文本 [at:userId] 替代 @xxx
-    const mentionText = `[at:${userId}]`;
+    // 插入 @displayName 纯文本，记录映射供发送时转换
+    const mentionText = `@${displayName}`;
+    mentionMapRef.current.set(displayName, userId);
     range.deleteContents();
     const textNode = document.createTextNode(mentionText + ' ');
     range.insertNode(textNode);
