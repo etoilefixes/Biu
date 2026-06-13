@@ -32,16 +32,19 @@ export default function LoginPage() {
       <div className="flex items-center justify-center flex-1">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="w-[400px] animate-scale-in">
-        <div className="text-center mb-10">
-          <h1 className="font-display text-5xl font-800 text-white mb-3 tracking-tightest">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-biu-primary/10 border border-biu-primary/20 mb-5">
+            <span className="font-display text-3xl font-800 text-biu-primary">B</span>
+          </div>
+          <h1 className="font-display text-5xl-display font-800 text-white mb-2.5 tracking-tightest">
             <span className="text-biu-primary">B</span>iu
           </h1>
-          <p className="text-gray-500 text-sm font-body">登录你的账号</p>
+          <p className="text-gray-500 text-sm font-body tracking-wide">登录你的账号</p>
         </div>
-        <div className="glass-strong rounded-2xl p-8 shadow-glow">
+        <div className="glass-strong rounded-2xl p-8 shadow-surface-xl">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="animate-slide-up stagger-1" style={{ opacity: 0, animationFillMode: 'forwards' }}>
-              <label className="text-gray-400 text-xs font-medium mb-1.5 block">用户名 / Biu号</label>
+              <label className="text-gray-400 text-xs font-medium mb-2 block tracking-wide">用户名 / Biu号</label>
               <input
                 type="text"
                 placeholder="输入用户名或 Biu号"
@@ -51,7 +54,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="animate-slide-up stagger-2" style={{ opacity: 0, animationFillMode: 'forwards' }}>
-              <label className="text-gray-400 text-xs font-medium mb-1.5 block">密码</label>
+              <label className="text-gray-400 text-xs font-medium mb-2 block tracking-wide">密码</label>
               <input
                 type="password"
                 placeholder="输入密码"
@@ -64,9 +67,17 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark font-display font-700 text-sm tracking-wide transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-glow-strong"
+                className="w-full py-3.5 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark font-display font-700 text-sm tracking-wide transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-glow-strong hover:scale-[1.01] active:scale-[0.99]"
               >
-                {loading ? '登录中...' : '登 录'}
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    登录中...
+                  </span>
+                ) : '登 录'}
               </button>
             </div>
           </form>

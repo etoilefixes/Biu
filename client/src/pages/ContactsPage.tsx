@@ -205,12 +205,12 @@ export default function ContactsPage() {
         </div>
       )}
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex items-center gap-2 px-6 py-4 border-b border-white/5">
-          <div className="flex gap-1 bg-white/5 rounded-xl p-1">
+        <div className="flex items-center gap-2 px-6 py-4 border-b border-white/[0.06]">
+          <div className="flex gap-1 bg-white/[0.04] rounded-xl p-1">
             <button
               onClick={() => { setTab('friends'); handleLoadFriends(); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${
-                tab === 'friends' ? 'bg-biu-primary/15 text-biu-primary' : 'text-gray-500 hover:text-gray-300'
+                tab === 'friends' ? 'bg-biu-primary/[0.12] text-biu-primary shadow-glow-subtle' : 'text-gray-500 hover:text-gray-300'
               }`}
               title="好友"
             >
@@ -219,13 +219,13 @@ export default function ContactsPage() {
             <button
               onClick={() => { setTab('requests'); handleLoadRequests(); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 relative ${
-                tab === 'requests' ? 'bg-biu-primary/15 text-biu-primary' : 'text-gray-500 hover:text-gray-300'
+                tab === 'requests' ? 'bg-biu-primary/[0.12] text-biu-primary shadow-glow-subtle' : 'text-gray-500 hover:text-gray-300'
               }`}
               title="好友申请"
             >
               <IconFriendRequest size={16} />
               {receivedRequests.filter((r) => r.status === 'pending').length > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 rounded-full bg-biu-accent text-white text-[9px] font-display font-600 flex items-center justify-center leading-none">
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 rounded-full bg-biu-accent text-white text-[9px] font-display font-600 flex items-center justify-center leading-none shadow-sm shadow-biu-accent/30">
                   {receivedRequests.filter((r) => r.status === 'pending').length}
                 </span>
               )}
@@ -235,7 +235,7 @@ export default function ContactsPage() {
           <button
             onClick={() => setShowSearch(!showSearch)}
             className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
-              showSearch ? 'bg-biu-primary/15 text-biu-primary' : 'text-gray-500 hover:text-white hover:bg-white/5'
+              showSearch ? 'bg-biu-primary/[0.12] text-biu-primary' : 'text-gray-500 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="搜索用户"
           >
@@ -320,7 +320,7 @@ export default function ContactsPage() {
               {friends.map((f) => (
                 <div
                   key={f.id}
-                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-all duration-200 cursor-pointer group"
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-150 cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
                     <button

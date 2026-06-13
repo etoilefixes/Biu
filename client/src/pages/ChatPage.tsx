@@ -921,14 +921,14 @@ export default function ChatPage() {
               </div>
               <button
                 onClick={handleSearchFriend}
-                className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 hover:shadow-glow"
+                className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 hover:shadow-glow hover:scale-[1.02] active:scale-[0.98]"
               >
                 <IconSearch size={16} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {addFriendResults.map((u) => (
-                <div key={u.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition">
+                <div key={u.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.04] transition-colors duration-150">
                   <div className="flex items-center gap-3">
                     <AvatarWithBadge
                       fallback={u.nickname[0]}
@@ -942,7 +942,7 @@ export default function ChatPage() {
                   ) : (
                     <button
                       onClick={() => handleSendFriendRequest(u.id)}
-                      className="p-2 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition"
+                      className="p-2 rounded-lg bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20 transition-colors duration-150"
                       title="添加好友"
                     >
                       <IconAddFriend size={16} />
@@ -984,7 +984,7 @@ export default function ChatPage() {
               {addMemberResults.map((u) => {
                 const isInGroup = currentConversation?.members.some(m => m.userId === u.id);
                 return (
-                  <div key={u.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition">
+                  <div key={u.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.04] transition-colors duration-150">
                     <div className="flex items-center gap-3">
                       <AvatarWithBadge
                         fallback={u.nickname[0]}
@@ -1001,7 +1001,7 @@ export default function ChatPage() {
                     ) : (
                       <button
                         onClick={() => handleAddMember(u.id)}
-                        className="px-3 py-1.5 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-xs font-body"
+                        className="px-3 py-1.5 rounded-lg bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20 transition-colors duration-150 text-xs font-body"
                       >
                         添加
                       </button>
@@ -1053,8 +1053,8 @@ export default function ChatPage() {
                     onClick={() => toggleMember(f.id)}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
                       selectedMemberIds.includes(f.id)
-                        ? 'bg-biu-primary/15 ring-1 ring-biu-primary/40'
-                        : 'hover:bg-white/5'
+                        ? 'bg-biu-primary/[0.12] ring-1 ring-biu-primary/40'
+                        : 'hover:bg-white/[0.04]'
                     }`}
                   >
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-biu-primary/30 to-biu-primary/10 flex items-center justify-center text-white text-xs font-display font-600">
@@ -1073,7 +1073,7 @@ export default function ChatPage() {
             <button
               onClick={handleCreateGroup}
               disabled={!groupName.trim() || selectedMemberIds.length === 0}
-              className="w-full py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark font-display font-600 transition-all duration-200 disabled:opacity-30 hover:shadow-glow"
+              className="w-full py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark font-display font-600 transition-all duration-200 disabled:opacity-30 hover:shadow-glow hover:scale-[1.01] active:scale-[0.99]"
             >
               创建群聊
             </button>
@@ -1089,13 +1089,13 @@ export default function ChatPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowConfirmDialog(null)}
-                className="flex-1 py-2.5 rounded-xl bg-white/5 text-white hover:bg-white/10 transition text-sm font-body"
+                className="flex-1 py-2.5 rounded-xl bg-white/[0.05] text-white hover:bg-white/[0.10] transition-colors duration-150 text-sm font-body"
               >
                 取消
               </button>
               <button
                 onClick={handleConfirmAction}
-                className="flex-1 py-2.5 rounded-xl bg-biu-accent text-white hover:bg-biu-accent/80 transition text-sm font-display font-600"
+                className="flex-1 py-2.5 rounded-xl bg-biu-accent text-white hover:bg-biu-accent/80 transition-colors duration-150 text-sm font-display font-600"
               >
                 确定
               </button>
@@ -1121,7 +1121,7 @@ export default function ChatPage() {
             </p>
             <button
               onClick={() => setShowAnnouncement(false)}
-              className="w-full py-2.5 rounded-xl bg-white/5 text-white hover:bg-white/10 transition text-sm font-body"
+              className="w-full py-2.5 rounded-xl bg-white/[0.05] text-white hover:bg-white/[0.10] transition-colors duration-150 text-sm font-body"
             >
               关闭
             </button>
@@ -1135,8 +1135,8 @@ export default function ChatPage() {
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setShowGroupSettings(false)}
           />
-          <div className="relative w-[320px] glass border-l border-white/5 flex flex-col animate-slide-in-from-right" style={{ animation: 'slideInFromRight 0.2s ease-out' }}>
-            <div className="p-4 border-b border-white/5 flex items-center justify-between">
+          <div className="relative w-[320px] glass border-l border-white/[0.06] flex flex-col animate-slide-in-from-right" style={{ animation: 'slideInFromRight 0.2s ease-out' }}>
+            <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
               <h2 className="text-white font-display font-700 text-sm">群设置</h2>
               <button onClick={() => setShowGroupSettings(false)} className="text-gray-500 hover:text-white transition">
                 <IconX size={18} />
@@ -1157,7 +1157,7 @@ export default function ChatPage() {
                       />
                       <button
                         onClick={handleUpdateGroupName}
-                        className="px-3 py-2 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-sm"
+                      className="px-3 py-2 rounded-lg bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20 transition-colors duration-150 text-sm"
                       >
                         保存
                       </button>
@@ -1184,7 +1184,7 @@ export default function ChatPage() {
                     />
                     <button
                       onClick={handleUpdateMyNickname}
-                      className="px-3 py-2 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-sm"
+                      className="px-3 py-2 rounded-lg bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20 transition-colors duration-150 text-sm"
                     >
                       保存
                     </button>
@@ -1213,7 +1213,7 @@ export default function ChatPage() {
                     />
                     <button
                       onClick={handleSetAnnouncement}
-                      className="mt-2 w-full py-2 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-sm"
+                      className="mt-2 w-full py-2 rounded-lg bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20 transition-colors duration-150 text-sm"
                     >
                       保存公告
                     </button>
@@ -1227,7 +1227,7 @@ export default function ChatPage() {
                       const memberRole = member.role || 'member';
                       const isMe = member.userId === user?.id;
                       return (
-                        <div key={member.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition">
+                        <div key={member.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/[0.04] transition-colors duration-150">
                           <div className="flex items-center gap-2">
                             <AvatarWithBadge
                               fallback={(member.nickname || member.user?.nickname)[0]}
@@ -1252,10 +1252,10 @@ export default function ChatPage() {
                               {isGroupOwner && memberRole !== 'owner' && (
                                 <button
                                   onClick={() => handleSetRole(member.id, memberRole === 'admin' ? 'member' : 'admin')}
-                                  className={`px-2 py-1 rounded text-xs transition ${
+                                  className={`px-2 py-1 rounded text-xs transition-colors duration-150 ${
                                     memberRole === 'admin'
-                                      ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-                                      : 'bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20'
+                                      ? 'bg-amber-500/[0.10] text-amber-400 hover:bg-amber-500/20'
+                                      : 'bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20'
                                   }`}
                                 >
                                   {memberRole === 'admin' ? '取消管理' : '设为管理'}
@@ -1264,7 +1264,7 @@ export default function ChatPage() {
                               {canManage && (memberRole === 'member' || isGroupOwner) && (
                                 <button
                                   onClick={() => handleRemoveMember(member.id, member.nickname || member.user?.nickname)}
-                                  className="px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition text-xs"
+                                  className="px-2 py-1 rounded bg-red-500/[0.10] text-red-400 hover:bg-red-500/20 transition-colors duration-150 text-xs"
                                 >
                                   移除
                                 </button>
@@ -1279,17 +1279,17 @@ export default function ChatPage() {
               </div>
             </div>
 
-            <div className="p-4 border-t border-white/5 space-y-2">
+            <div className="p-4 border-t border-white/[0.06] space-y-2">
               <button
                 onClick={handleLeaveGroup}
-                className="w-full py-2.5 rounded-lg bg-white/5 text-white hover:bg-white/10 transition text-sm font-body"
+                className="w-full py-2.5 rounded-lg bg-white/[0.05] text-white hover:bg-white/[0.10] transition-colors duration-150 text-sm font-body"
               >
                 退出群聊
               </button>
               {isGroupOwner && (
                 <button
                   onClick={handleDissolveGroup}
-                  className="w-full py-2.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition text-sm font-body"
+                  className="w-full py-2.5 rounded-lg bg-biu-accent/[0.08] text-biu-accent hover:bg-biu-accent/20 transition-colors duration-150 text-sm font-body"
                 >
                   解散群聊
                 </button>
@@ -1300,7 +1300,7 @@ export default function ChatPage() {
       )}
 
       <div
-        className="glass border-r border-white/5 flex flex-col shrink-0"
+        className="glass border-r border-white/[0.06] flex flex-col shrink-0"
         style={{ width: sidebarWidth }}
       >
         <div className="p-3 relative flex gap-2 items-center">
@@ -1325,7 +1325,7 @@ export default function ChatPage() {
           <div className="relative" ref={addDropdownRef}>
             <button
               onClick={() => setShowAddDropdown(!showAddDropdown)}
-              className="w-10 h-10 rounded-xl bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 flex items-center justify-center transition shrink-0"
+              className="w-10 h-10 rounded-xl bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20 flex items-center justify-center transition-colors duration-150 shrink-0"
               title="添加"
             >
               <IconAddFriend size={18} />
@@ -1335,19 +1335,19 @@ export default function ChatPage() {
                 <GlassCard className="w-40 py-1.5">
                   <button
                     onClick={handleOpenAddFriendModal}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/5 transition font-body"
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors duration-150 font-body"
                   >
                     <IconAddFriend size={16} className="text-biu-primary" /> 添加好友
                   </button>
                   <button
                     onClick={handleOpenGroupModal}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/5 transition font-body"
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors duration-150 font-body"
                   >
                     <IconGroup size={16} className="text-biu-primary" /> 发起群聊
                   </button>
                   <button
                     onClick={() => { setShowAddDropdown(false); setShowAiRoleModal(true); }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/5 transition font-body"
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors duration-150 font-body"
                   >
                     <IconRobot size={16} className="text-biu-primary" /> AI 角色
                   </button>
@@ -1391,7 +1391,7 @@ export default function ChatPage() {
       <div className="flex-1 flex flex-col min-w-0">
         {currentConversation ? (
           <>
-            <div className="h-14 glass-strong flex items-center px-6 border-b border-white/5">
+            <div className="h-14 glass-strong flex items-center px-6 border-b border-white/[0.06]">
               <h2 className="text-white font-display font-600 text-sm tracking-wide">{convDisplayName(currentConversation)}</h2>
               {currentConversation.type === 'private' && otherUser && (
                 <UserBadge badges={otherUser.user?.badges} size="sm" />
@@ -1403,13 +1403,13 @@ export default function ChatPage() {
                   </span>
                   <button
                     onClick={() => setShowAddMemberModal(true)}
-                    className="ml-3 flex items-center gap-1.5 px-3 py-1 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-xs font-body"
+                    className="ml-3 flex items-center gap-1.5 px-3 py-1 rounded-lg bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20 transition-colors duration-150 text-xs font-body"
                   >
                     <IconPlus size={12} /> 添加成员
                   </button>
                   <button
                     onClick={handleOpenGroupSettings}
-                    className="ml-2 w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 flex items-center justify-center transition"
+                    className="ml-2 w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] flex items-center justify-center transition-colors duration-150"
                     title="群管理"
                   >
                     <IconMore size={18} />
@@ -1419,7 +1419,7 @@ export default function ChatPage() {
               {currentConversation.type === 'private' && otherUser && !isFriend(otherUser.userId) && (
                 <button
                   onClick={() => handleSendFriendRequest(otherUser.userId)}
-                  className="ml-3 flex items-center gap-1.5 px-3 py-1 rounded-lg bg-biu-primary/10 text-biu-primary hover:bg-biu-primary/20 transition text-xs font-body"
+                  className="ml-3 flex items-center gap-1.5 px-3 py-1 rounded-lg bg-biu-primary/[0.10] text-biu-primary hover:bg-biu-primary/20 transition-colors duration-150 text-xs font-body"
                 >
                   <IconAddFriend size={12} /> 添加到通讯录
                 </button>
@@ -1428,7 +1428,7 @@ export default function ChatPage() {
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {currentConversation?.type === 'group' && currentConversation?.announcement && !showAnnouncement && !dismissedAnnouncementConvIds.has(currentConversation.id) && (
                 <div 
-                  className="mb-4 p-3 rounded-xl bg-biu-primary/10 border border-biu-primary/20 cursor-pointer flex items-start gap-2"
+                  className="mb-4 p-3 rounded-xl bg-biu-primary/[0.08] border border-biu-primary/[0.15] cursor-pointer flex items-start gap-2 transition-colors duration-150 hover:bg-biu-primary/[0.12]"
                   onClick={() => setShowAnnouncement(true)}
                 >
                   <IconAnnouncement size={16} className="text-biu-primary shrink-0 mt-0.5" />
@@ -1475,11 +1475,11 @@ export default function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
             {isSystemConversation ? (
-              <div className="px-4 py-6 glass-strong border-t border-white/5 text-center">
+              <div className="px-4 py-6 glass-strong border-t border-white/[0.06] text-center">
                 <p className="text-gray-500 text-sm font-body">系统通知，暂不支持发送消息</p>
               </div>
             ) : (
-            <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/5">
+            <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/[0.06]">
               <div className="flex items-center gap-2 mb-2">
                 <div className="relative">
                   <button
@@ -1487,7 +1487,7 @@ export default function ChatPage() {
                     className={`p-1.5 rounded-lg transition-all duration-200 ${
                       showEmojiPicker
                         ? 'bg-biu-primary/20 text-biu-primary'
-                        : 'text-gray-500 hover:text-white hover:bg-white/5'
+                        : 'text-gray-500 hover:text-white hover:bg-white/[0.06]'
                     }`}
                   >
                     <IconEmoji size={14} />
@@ -1628,7 +1628,7 @@ export default function ChatPage() {
                 </AnimatePresence>
                 <button
                   onClick={handleSend}
-                  className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 disabled:opacity-30 hover:shadow-glow"
+                  className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 disabled:opacity-30 hover:shadow-glow hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <IconSend size={18} />
                 </button>
@@ -1639,11 +1639,12 @@ export default function ChatPage() {
         ) : (
           <div className="flex-1 flex items-center justify-center animate-fade-in">
             <div className="text-center">
-              <div className="w-20 h-20 rounded-2xl bg-biu-primary/8 border border-biu-primary/15 flex items-center justify-center mx-auto mb-5 animate-float">
-                <IconChat size={32} className="text-biu-primary/70" />
+              <div className="w-20 h-20 rounded-2xl bg-biu-primary/[0.06] border border-biu-primary/[0.12] flex items-center justify-center mx-auto mb-5 animate-float relative">
+                <IconChat size={32} className="text-biu-primary/60" />
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-biu-primary/[0.04] to-transparent pointer-events-none" />
               </div>
-              <p className="text-gray-400 text-sm font-display font-500 mb-1">选择一个会话</p>
-              <p className="text-gray-600 text-xs font-body">开始聊天</p>
+              <p className="text-gray-300 text-sm font-display font-500 mb-1">选择一个会话</p>
+              <p className="text-gray-500 text-xs font-body">开始聊天</p>
             </div>
           </div>
         )}

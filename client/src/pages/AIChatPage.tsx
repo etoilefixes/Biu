@@ -303,19 +303,19 @@ export default function AIChatPage() {
 
   return (
     <div className="flex h-screen bg-biu-dark">
-      <div className="w-72 glass border-r border-white/5 flex flex-col">
-        <div className="p-4 border-b border-white/5">
-          <h1 className="text-white font-display font-700 text-sm">AI 工作台</h1>
+      <div className="w-72 glass border-r border-white/[0.06] flex flex-col">
+        <div className="p-4 border-b border-white/[0.06]">
+          <h1 className="text-white font-display font-700 text-sm tracking-wide">AI 工作台</h1>
         </div>
         <div className="flex-1 overflow-y-auto">
           {conversations.map((conv) => (
             <button
               key={conv.id}
               onClick={() => selectConversation(conv)}
-              className={`w-full p-4 text-left border-b border-white/5 transition-all duration-200 ${
+              className={`w-full p-4 text-left border-b border-white/[0.04] transition-all duration-200 ${
                 currentConversation?.id === conv.id
-                  ? 'bg-biu-primary/10 text-biu-primary'
-                  : 'text-white hover:bg-white/5'
+                  ? 'bg-biu-primary/[0.06] border-l-2 border-l-biu-primary text-white'
+                  : 'text-white hover:bg-white/[0.03] border-l-2 border-l-transparent'
               }`}
             >
               <p className="text-sm font-display font-600 truncate">{convDisplayName(conv)}</p>
@@ -402,8 +402,8 @@ export default function AIChatPage() {
 
         {currentConversation ? (
           <>
-            <div className="h-14 glass-strong flex items-center px-6 border-b border-white/5">
-              <h2 className="text-white font-display font-600 text-sm">{convDisplayName(currentConversation)}</h2>
+            <div className="h-14 glass-strong flex items-center px-6 border-b border-white/[0.06]">
+              <h2 className="text-white font-display font-600 text-sm tracking-wide">{convDisplayName(currentConversation)}</h2>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {messages.map((msg, index) => {
@@ -433,7 +433,7 @@ export default function AIChatPage() {
               })}
               <div ref={messagesEndRef} />
             </div>
-            <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/5 relative">
+            <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/[0.06] relative">
               {/* 命令面板 */}
               {showCommandPalette && filteredCommands.length > 0 && (
                 <div className="absolute bottom-full left-4 right-4 mb-2">
@@ -483,7 +483,7 @@ export default function AIChatPage() {
                 <button
                   onClick={handleSend}
                   disabled={!input.trim()}
-                  className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 disabled:opacity-30 hover:shadow-glow"
+                  className="px-4 py-3 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark transition-all duration-200 disabled:opacity-30 hover:shadow-glow hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <IconSend size={18} />
                 </button>
@@ -491,12 +491,13 @@ export default function AIChatPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center animate-fade-in">
             <div className="text-center">
-              <div className="w-20 h-20 rounded-2xl bg-biu-primary/8 border border-biu-primary/15 flex items-center justify-center mx-auto mb-5">
-                <IconChat size={32} className="text-biu-primary/70" />
+              <div className="w-20 h-20 rounded-2xl bg-biu-primary/[0.06] border border-biu-primary/[0.12] flex items-center justify-center mx-auto mb-5 animate-float relative">
+                <IconChat size={32} className="text-biu-primary/60" />
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-biu-primary/[0.04] to-transparent pointer-events-none" />
               </div>
-              <p className="text-gray-400 text-sm font-display font-500 mb-1">选择一个会话</p>
+              <p className="text-gray-300 text-sm font-display font-500 mb-1">选择一个会话</p>
               <p className="text-gray-600 text-xs font-body">开始聊天</p>
             </div>
           </div>

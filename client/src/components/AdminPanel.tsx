@@ -127,7 +127,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     return (
       <>
         <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-        <div className="fixed left-[60px] top-0 bottom-0 w-[400px] z-50 glass-strong flex flex-col animate-slide-in-left shadow-2xl shadow-glow">
+        <div className="fixed left-[60px] top-0 bottom-0 w-[400px] z-50 glass-strong flex flex-col animate-slide-in-left shadow-surface-xl">
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="w-16 h-16 rounded-2xl glass flex items-center justify-center mx-auto mb-4">
@@ -147,11 +147,11 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* 侧面板 */}
-      <div className="fixed left-[60px] top-0 bottom-0 w-[440px] z-50 glass-strong flex flex-col animate-slide-in-left shadow-2xl shadow-glow">
+      <div className="fixed left-[60px] top-0 bottom-0 w-[440px] z-50 glass-strong flex flex-col animate-slide-in-left shadow-surface-xl">
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-biu-primary/15 flex items-center justify-center">
               <IconCrown size={16} className="text-biu-primary" />
@@ -163,7 +163,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/[0.06] transition"
           >
             <IconX size={16} />
           </button>
@@ -381,10 +381,10 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
             <>
               <div className="fixed inset-0 z-40" onClick={() => setRoleDropdown(null)} />
               <div
-                className="fixed z-50 glass-strong rounded-xl py-1 min-w-[150px] shadow-2xl animate-scale-in border border-white/[0.08]"
+                className="fixed z-50 glass-strong rounded-xl py-1 min-w-[150px] shadow-surface-lg animate-scale-in border border-white/[0.08]"
                 style={{ left: roleDropdown.x - 150, top: roleDropdown.y }}
               >
-                <div className="px-3 py-1.5 border-b border-white/5">
+                <div className="px-3 py-1.5 border-b border-white/[0.06]">
                   <span className="text-gray-500 text-[10px] font-body">系统角色</span>
                 </div>
                 {ROLES.map(r => (
@@ -414,10 +414,10 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
             <>
               <div className="fixed inset-0 z-40" onClick={() => setOfficialDropdown(null)} />
               <div
-                className="fixed z-50 glass-strong rounded-xl py-1 min-w-[130px] shadow-2xl animate-scale-in border border-white/[0.08]"
+                className="fixed z-50 glass-strong rounded-xl py-1 min-w-[130px] shadow-surface-lg animate-scale-in border border-white/[0.08]"
                 style={{ left: officialDropdown.x - 130, top: officialDropdown.y }}
               >
-                <div className="px-3 py-1.5 border-b border-white/5">
+                <div className="px-3 py-1.5 border-b border-white/[0.06]">
                   <span className="text-gray-500 text-[10px] font-body">认证状态</span>
                 </div>
                 {OFFICIAL_STATUSES.map(s => (
@@ -442,7 +442,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         {/* Confirm Delete Modal */}
         {confirmAction && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="glass-strong rounded-2xl p-6 w-[340px] animate-scale-in shadow-2xl">
+            <div className="glass-strong rounded-2xl p-6 w-[340px] animate-scale-in shadow-surface-lg">
               <div className="w-12 h-12 rounded-xl bg-biu-accent/10 flex items-center justify-center mx-auto mb-4">
                 <IconTrash size={22} className="text-biu-accent" />
               </div>

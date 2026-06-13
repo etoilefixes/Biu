@@ -165,7 +165,7 @@ export default function ContactsPanel({ onClose }: ContactsPanelProps) {
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* 侧面板 */}
-      <div className="fixed left-[60px] top-0 bottom-0 w-[360px] z-50 glass-strong flex flex-col animate-slide-in-left shadow-2xl shadow-glow">
+      <div className="fixed left-[60px] top-0 bottom-0 w-[360px] z-50 glass-strong flex flex-col animate-slide-in-left shadow-surface-xl">
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
         {/* Header */}

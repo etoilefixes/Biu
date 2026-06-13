@@ -127,7 +127,7 @@ export default function NavBar() {
       {showProfile && (
         <div
           ref={profileRef}
-          className="fixed left-[76px] top-4 w-72 glass-strong rounded-2xl p-5 z-50 shadow-2xl animate-scale-in shadow-glow"
+          className="fixed left-[76px] top-4 w-72 glass-strong rounded-2xl p-5 z-50 shadow-surface-xl animate-scale-in"
         >
           <div className="flex items-center gap-3 mb-5">
             <AvatarWithBadge
@@ -187,7 +187,7 @@ export default function NavBar() {
       {showSettings && (
         <div
           ref={settingsRef}
-          className="fixed left-[76px] top-4 bottom-4 w-80 glass-strong rounded-2xl z-50 shadow-2xl animate-scale-in shadow-glow flex flex-col overflow-hidden"
+          className="fixed left-[76px] top-4 bottom-4 w-80 glass-strong rounded-2xl z-50 shadow-surface-xl animate-scale-in flex flex-col overflow-hidden"
         >
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
             <h2 className="text-white font-display font-600 text-sm">设置</h2>
@@ -335,12 +335,12 @@ export default function NavBar() {
           </div>
         </div>
       )}
-      <div className="w-[60px] h-full glass flex flex-col items-center py-4 gap-2">
+      <div className="w-[60px] h-full glass flex flex-col items-center py-4 gap-1.5">
         <button
           ref={avatarRef}
           onClick={() => { setShowProfile(!showProfile); setShowSettings(false); }}
-          className={`relative mb-4 transition-all duration-200 ${
-            showProfile ? 'ring-2 ring-biu-primary shadow-glow' : 'hover:shadow-glow hover:scale-105'
+          className={`relative mb-3 transition-all duration-200 rounded-xl ${
+            showProfile ? 'ring-2 ring-biu-primary shadow-glow' : 'hover:shadow-glow-subtle hover:scale-105'
           }`}
         >
           <AvatarWithBadge
@@ -357,16 +357,16 @@ export default function NavBar() {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative ${
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative group ${
                 location.pathname === item.path
-                  ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
-                  : 'text-gray-500 hover:text-white hover:bg-white/5'
+                  ? 'bg-biu-primary/12 text-biu-primary shadow-glow-subtle'
+                  : 'text-gray-500 hover:text-white hover:bg-white/[0.06]'
               }`}
               title={item.label}
             >
               {item.icon}
               {badge && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none shadow-sm">
                   {badge}
                 </span>
               )}
@@ -375,16 +375,16 @@ export default function NavBar() {
         })}
         <button
           onClick={() => setShowContacts(!showContacts)}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative ${
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative group ${
             showContacts
-              ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
-              : 'text-gray-500 hover:text-white hover:bg-white/5'
+              ? 'bg-biu-primary/12 text-biu-primary shadow-glow-subtle'
+              : 'text-gray-500 hover:text-white hover:bg-white/[0.06]'
           }`}
           title="联系人"
         >
           <IconContacts size={20} />
           {pendingRequestCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none">
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none shadow-sm">
               {formatBadge(pendingRequestCount)}
             </span>
           )}
@@ -394,8 +394,8 @@ export default function NavBar() {
             onClick={() => navigate('/ai-chat')}
             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
               location.pathname === '/ai-chat'
-                ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
-                : 'text-gray-500 hover:text-white hover:bg-white/5'
+                ? 'bg-biu-primary/12 text-biu-primary shadow-glow-subtle'
+                : 'text-gray-500 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="AI 工作台"
           >
@@ -407,8 +407,8 @@ export default function NavBar() {
             onClick={() => setShowAdmin(!showAdmin)}
             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
               showAdmin
-                ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
-                : 'text-gray-500 hover:text-white hover:bg-white/5'
+                ? 'bg-biu-primary/12 text-biu-primary shadow-glow-subtle'
+                : 'text-gray-500 hover:text-white hover:bg-white/[0.06]'
             }`}
             title="管理面板"
           >
@@ -419,7 +419,7 @@ export default function NavBar() {
         {!isAIUser && (
           <button
             onClick={() => setShowAiRoleModal(true)}
-            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 text-gray-500 hover:text-white hover:bg-white/5"
+            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 text-gray-500 hover:text-white hover:bg-white/[0.06]"
             title="AI 角色"
           >
             <IconRobot size={20} />
@@ -430,8 +430,8 @@ export default function NavBar() {
           onClick={() => { setShowSettings(!showSettings); setShowProfile(false); }}
           className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
             showSettings
-              ? 'bg-biu-primary/15 text-biu-primary shadow-glow'
-              : 'text-gray-500 hover:text-white hover:bg-white/5'
+              ? 'bg-biu-primary/12 text-biu-primary shadow-glow-subtle'
+              : 'text-gray-500 hover:text-white hover:bg-white/[0.06]'
           }`}
           title="设置"
         >

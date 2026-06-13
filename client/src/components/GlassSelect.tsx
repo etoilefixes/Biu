@@ -65,7 +65,7 @@ export default function GlassSelect({
       </button>
 
       {open && options.length > 0 && (
-        <div className="absolute z-[60] left-0 right-0 mt-1 glass-strong rounded-xl py-1 max-h-[220px] overflow-y-auto animate-scale-in shadow-2xl">
+        <div className="absolute z-[60] left-0 right-0 mt-1 glass-strong rounded-xl py-1 max-h-[220px] overflow-y-auto animate-scale-in shadow-surface-lg">
           {options.map((opt) => (
             <button
               key={opt.value}
@@ -77,12 +77,12 @@ export default function GlassSelect({
                   setOpen(false);
                 }
               }}
-              className={`w-full px-3 py-2 text-left text-sm font-body transition-colors ${
+              className={`w-full px-3 py-2 text-left text-sm font-body transition-colors duration-150 ${
                 opt.disabled
                   ? 'text-gray-600 cursor-not-allowed'
                   : opt.value === value
-                    ? 'text-biu-primary bg-white/5'
-                    : 'text-gray-300 hover:text-white hover:bg-white/5'
+                    ? 'text-biu-primary bg-biu-primary/[0.08]'
+                    : 'text-gray-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               {opt.label}

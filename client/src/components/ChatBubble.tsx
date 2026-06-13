@@ -174,7 +174,7 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry,
     if (!text) return null;
     return (
       <div className="flex justify-center mb-3 animate-message-in">
-        <span className="text-gray-500 text-xs bg-white/5 px-3 py-1 rounded-full">
+        <span className="text-gray-500 text-[11px] bg-white/[0.04] border border-white/[0.06] px-3 py-1 rounded-full font-body">
           {text}
         </span>
       </div>
@@ -322,19 +322,19 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry,
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
           <div
-            className="fixed z-50 glass-strong rounded-xl py-1.5 min-w-[120px] context-menu shadow-glow"
+            className="fixed z-50 glass-strong rounded-xl py-1 min-w-[120px] context-menu shadow-surface-lg"
             style={{ left: menuPos.x, top: menuPos.y }}
           >
             <button
               onClick={handleCopy}
-              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/5 transition font-body"
+              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/[0.06] transition-colors duration-150 font-body"
             >
               复制
             </button>
             {isSelf && (
               <button
                 onClick={handleDelete}
-                className="w-full px-4 py-2 text-left text-sm text-biu-accent hover:bg-white/5 transition font-body"
+                className="w-full px-4 py-2 text-left text-sm text-biu-accent hover:bg-biu-accent/[0.06] transition-colors duration-150 font-body"
               >
                 删除
               </button>

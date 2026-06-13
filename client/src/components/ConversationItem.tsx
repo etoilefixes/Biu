@@ -240,13 +240,12 @@ export default function ConversationItem({
           transform: `translateX(${translateX}px)`,
           transition: isSwiping.current ? 'none' : 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
-        className={`relative flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none bg-biu-dark ${
+        className={`relative flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none bg-biu-dark transition-colors duration-150 ${
           active
-            ? 'border-l-2 border-biu-primary'
+            ? 'border-l-2 border-biu-primary bg-biu-primary/[0.06]'
             : 'hover:bg-biu-dark-alt border-l-2 border-transparent'
         }`}
       >
-        {active && <div className="absolute inset-0 bg-biu-primary/10 pointer-events-none" />}
         <div className="relative shrink-0">
           <AvatarWithBadge
             fallback={avatarFallback}
@@ -255,7 +254,7 @@ export default function ConversationItem({
             size="md"
           />
           {badge && (
-            <span className="absolute -top-1.5 -left-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none">
+            <span className="absolute -top-1.5 -left-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-biu-accent text-white text-[10px] font-display font-600 flex items-center justify-center leading-none shadow-sm shadow-biu-accent/30">
               {badge}
             </span>
           )}

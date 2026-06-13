@@ -110,13 +110,13 @@ export default function AiRoleModal({ onClose }: AiRoleModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-[680px] max-h-[85vh] glass-strong rounded-2xl shadow-2xl flex flex-col animate-scale-in">
+      <div className="relative w-[680px] max-h-[85vh] glass-strong rounded-2xl shadow-surface-xl flex flex-col animate-scale-in">
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-biu-primary/15 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-biu-primary/[0.12] flex items-center justify-center">
               <IconRobot size={18} className="text-biu-primary" />
             </div>
             <div>
@@ -127,7 +127,7 @@ export default function AiRoleModal({ onClose }: AiRoleModalProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setEditingRole(null); setShowEditor(true); }}
-              className="px-3 py-1.5 rounded-lg bg-biu-primary/15 text-biu-primary text-xs font-display font-500 hover:bg-biu-primary/25 transition flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg bg-biu-primary/[0.12] text-biu-primary text-xs font-display font-500 hover:bg-biu-primary/20 transition-colors duration-150 flex items-center gap-1.5"
             >
               <IconPlus size={14} /> 创建角色
             </button>
@@ -150,7 +150,7 @@ export default function AiRoleModal({ onClose }: AiRoleModalProps) {
         ) : (
           <>
             {/* Search */}
-            <div className="px-6 py-3 border-b border-white/5">
+            <div className="px-6 py-3 border-b border-white/[0.06]">
               <div className="relative">
                 <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
                 <input
@@ -182,7 +182,7 @@ export default function AiRoleModal({ onClose }: AiRoleModalProps) {
                   {filteredRoles.map((role) => (
                     <div
                       key={role.id}
-                      className="glass rounded-xl p-4 hover:bg-white/5 transition cursor-pointer group"
+                      className="glass rounded-xl p-4 hover:bg-white/[0.04] transition-all duration-200 cursor-pointer group"
                       onClick={() => handleChatWithRole(role)}
                     >
                       <div className="flex items-start gap-3">
@@ -510,20 +510,20 @@ function AiRoleEditor({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/5">
+      <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/[0.06]">
         {!isOwner && role && (
           <p className="flex-1 text-gray-500 text-xs font-body">仅可调整 AI 参数，角色设定由创建者维护</p>
         )}
         <button
           onClick={onCancel}
-          className="px-4 py-2 rounded-lg bg-white/5 text-gray-400 text-sm font-body hover:bg-white/10 transition"
+          className="px-4 py-2 rounded-lg bg-white/[0.05] text-gray-400 text-sm font-body hover:bg-white/[0.10] transition-colors duration-150"
         >
           取消
         </button>
         <button
           onClick={handleSave}
           disabled={saving || (isOwner && !name.trim())}
-          className="px-4 py-2 rounded-lg bg-biu-primary text-biu-dark text-sm font-body font-500 hover:bg-biu-primary-dim transition disabled:opacity-30"
+          className="px-4 py-2 rounded-lg bg-biu-primary text-biu-dark text-sm font-body font-500 hover:bg-biu-primary-dim transition-all duration-200 disabled:opacity-30 hover:shadow-glow hover:scale-[1.01] active:scale-[0.99]"
         >
           {saving ? '保存中...' : isOwner ? (role ? '更新角色' : '创建角色') : '保存参数'}
         </button>

@@ -78,66 +78,98 @@ export default function RegisterPage() {
       <div className="flex items-center justify-center flex-1">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="w-[400px] animate-scale-in">
-        <div className="text-center mb-10">
-          <h1 className="font-display text-5xl font-800 text-white mb-3 tracking-tightest">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-biu-primary/10 border border-biu-primary/20 mb-5">
+            <span className="font-display text-3xl font-800 text-biu-primary">B</span>
+          </div>
+          <h1 className="font-display text-5xl-display font-800 text-white mb-2.5 tracking-tightest">
             <span className="text-biu-primary">B</span>iu
           </h1>
-          <p className="text-gray-500 text-sm font-body">创建新账号</p>
+          <p className="text-gray-500 text-sm font-body tracking-wide">创建新账号</p>
         </div>
-        <div className="glass-strong rounded-2xl p-8 shadow-glow">
+        <div className="glass-strong rounded-2xl p-8 shadow-surface-xl">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="animate-slide-up stagger-1" style={{ opacity: 0, animationFillMode: 'forwards' }}>
-              <label className="text-gray-400 text-xs font-medium mb-1.5 block">用户名</label>
+              <label className="text-gray-400 text-xs font-medium mb-2 block tracking-wide">用户名</label>
               <input
                 type="text"
                 placeholder="输入用户名（3-20位字母数字下划线）"
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); clearFieldError('username'); }}
                 className={`w-full px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body ${
-                  errors.username ? 'border-red-500/50' : ''
+                  errors.username ? 'border-red-500/40 focus:border-red-500/60' : ''
                 }`}
               />
               {errors.username && (
-                <p className="text-red-400 text-xs mt-1.5 font-body">{errors.username}</p>
+                <p className="text-red-400/90 text-xs mt-1.5 font-body flex items-center gap-1">
+                  <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  {errors.username}
+                </p>
               )}
             </div>
             <div className="animate-slide-up stagger-2" style={{ opacity: 0, animationFillMode: 'forwards' }}>
-              <label className="text-gray-400 text-xs font-medium mb-1.5 block">昵称</label>
+              <label className="text-gray-400 text-xs font-medium mb-2 block tracking-wide">昵称</label>
               <input
                 type="text"
                 placeholder="你的昵称"
                 value={nickname}
                 onChange={(e) => { setNickname(e.target.value); clearFieldError('nickname'); }}
                 className={`w-full px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body ${
-                  errors.nickname ? 'border-red-500/50' : ''
+                  errors.nickname ? 'border-red-500/40 focus:border-red-500/60' : ''
                 }`}
               />
               {errors.nickname && (
-                <p className="text-red-400 text-xs mt-1.5 font-body">{errors.nickname}</p>
+                <p className="text-red-400/90 text-xs mt-1.5 font-body flex items-center gap-1">
+                  <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  {errors.nickname}
+                </p>
               )}
             </div>
             <div className="animate-slide-up stagger-3" style={{ opacity: 0, animationFillMode: 'forwards' }}>
-              <label className="text-gray-400 text-xs font-medium mb-1.5 block">密码</label>
+              <label className="text-gray-400 text-xs font-medium mb-2 block tracking-wide">密码</label>
               <input
                 type="password"
                 placeholder="设置密码（至少6位）"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); clearFieldError('password'); }}
                 className={`w-full px-4 py-3 rounded-xl glass-input text-white placeholder-gray-600 outline-none font-body ${
-                  errors.password ? 'border-red-500/50' : ''
+                  errors.password ? 'border-red-500/40 focus:border-red-500/60' : ''
                 }`}
               />
               {errors.password && (
-                <p className="text-red-400 text-xs mt-1.5 font-body">{errors.password}</p>
+                <p className="text-red-400/90 text-xs mt-1.5 font-body flex items-center gap-1">
+                  <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  {errors.password}
+                </p>
               )}
             </div>
             <div className="animate-slide-up stagger-4" style={{ opacity: 0, animationFillMode: 'forwards' }}>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark font-display font-700 text-sm tracking-wide transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-glow-strong"
+                className="w-full py-3.5 rounded-xl bg-biu-primary hover:bg-biu-primary-dim text-biu-dark font-display font-700 text-sm tracking-wide transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-glow-strong hover:scale-[1.01] active:scale-[0.99]"
               >
-                {loading ? '注册中...' : '注 册'}
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    注册中...
+                  </span>
+                ) : '注 册'}
               </button>
             </div>
           </form>

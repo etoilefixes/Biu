@@ -29,7 +29,7 @@ export default function TitleBar() {
   const handleClose = () => window.electronAPI?.close();
 
   return (
-    <div className="flex items-center justify-between h-9 shrink-0 select-none px-3" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="flex items-center justify-between h-9 shrink-0 select-none px-3 border-b border-white/[0.03]" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       <div className="flex items-center gap-1.5 min-w-0">
         {!isConnected && (
           <span className="flex items-center gap-1 text-amber-400 text-xs font-body animate-pulse">
@@ -42,7 +42,7 @@ export default function TitleBar() {
           </span>
         )}
         {isConnected && (
-          <span className="text-gray-500 text-xs font-body truncate">
+          <span className="text-gray-600 text-xs font-body truncate">
             {totalUnread > 0 ? `${totalUnread} 条未读消息` : 'Biu'}
           </span>
         )}
@@ -50,7 +50,7 @@ export default function TitleBar() {
       <div className="flex h-full" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={handleMinimize}
-          className="w-11 h-full flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10 transition-colors duration-150"
+          className="w-11 h-full flex items-center justify-center text-gray-600 hover:text-white hover:bg-white/[0.06] transition-colors duration-150"
         >
           <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor">
             <rect width="10" height="1" />
@@ -58,7 +58,7 @@ export default function TitleBar() {
         </button>
         <button
           onClick={handleMaximize}
-          className="w-11 h-full flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10 transition-colors duration-150"
+          className="w-11 h-full flex items-center justify-center text-gray-600 hover:text-white hover:bg-white/[0.06] transition-colors duration-150"
         >
           {isMaximized ? (
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1">
@@ -73,7 +73,7 @@ export default function TitleBar() {
         </button>
         <button
           onClick={handleClose}
-          className="w-11 h-full flex items-center justify-center text-gray-500 hover:text-white hover:bg-biu-accent transition-colors duration-150"
+          className="w-11 h-full flex items-center justify-center text-gray-600 hover:text-white hover:bg-biu-accent transition-colors duration-150"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2">
             <line x1="0" y1="0" x2="10" y2="10" />
