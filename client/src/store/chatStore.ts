@@ -154,19 +154,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     );
     const cleanConversation = { ...conversation, mentionType: null };
 
+    // 先更新会话信息，但不清空消息（避免闪烁）
     if (hasUnread) {
       const newMap = { ...unreadMap };
       delete newMap[conversation.id];
       set({
         conversations,
         currentConversation: cleanConversation,
-        messages: [],
-        lastReadMessageId: null,
         unreadMap: newMap,
         totalUnread: calcTotalUnread(newMap),
       });
     } else {
-      set({ conversations, currentConversation: cleanConversation, messages: [], lastReadMessageId: null });
+      set({ conversations, currentConversation: cleanConversation });
     }
 
     // Fetch messages FIRST — the server returns lastReadAt before mark-read
@@ -188,6 +187,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
+    // 一次性设置新消息和 lastReadMessageId
     set({ messages: fetchedMessages, lastReadMessageId });
 
     // Now mark as read (after messages are fetched with the anchor)
@@ -211,7 +211,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       _tempSender: senderId || '',
     } as any;
 
-    set((state) => ({ messages: [...state.messages, optimisticMessage], lastReadMessageId: null }));
+    set((state) => ({ messages: [...state.messages, optimisticMessage] }));
 
     get().updateConversationLastMessage(currentConversation.id, optimisticMessage);
 
@@ -296,7 +296,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (streamIndex !== -1) {
       set({
         messages: messages.map((m, i) => (i === streamIndex ? message : m)),
-        lastReadMessageId: null,
       });
       // 清理流式状态
       const newStreaming = new Map(get().streamingMessages);
@@ -319,13 +318,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         set({
           messages: messages.map((m, i) => (i === optimisticIndex ? message : m)),
-          lastReadMessageId: null,
         });
       } else {
         // Only add to messages array if it belongs to the current conversation
         const currentConvId = get().currentConversation?.id;
         if (message.conversationId === currentConvId) {
-          set((state) => ({ messages: [...state.messages, message], lastReadMessageId: null }));
+          set((state) => ({ messages: [...state.messages, message] }));
         }
       }
     }

@@ -80,6 +80,11 @@ export default function ChatPage() {
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const newMessageDividerRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // 是否应该自动滚动到底部（切换会话或自己发消息时为true）
+  const shouldAutoScrollRef = useRef(true);
+  // 上次消息数量，用于判断是否是新消息到达
+  const prevMessageCountRef = useRef(0);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isDragging = useRef(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -222,12 +227,43 @@ export default function ChatPage() {
     };
   }, []);
 
+  // 智能滚动逻辑：
+  // 1. 切换会话时：滚动到新消息分割线或底部
+  // 2. 自己发消息时：自动滚动到底部
+  // 3. 收到新消息时：如果已在底部附近则自动滚动，否则不干扰用户浏览历史
   useEffect(() => {
-    if (lastReadMessageId && newMessageDividerRef.current) {
-      // Scroll to "new messages" divider on initial load
-      newMessageDividerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const prevCount = prevMessageCountRef.current;
+    const currentCount = messages.length;
+    prevMessageCountRef.current = currentCount;
+
+    // 切换会话（消息从0变为有数据，或会话ID变化）
+    if (prevCount === 0 && currentCount > 0) {
+      shouldAutoScrollRef.current = true;
+    }
+
+    if (shouldAutoScrollRef.current) {
+      if (lastReadMessageId && newMessageDividerRef.current) {
+        newMessageDividerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+      // 只在首次加载时自动滚动，之后需要判断位置
+      if (prevCount > 0) {
+        shouldAutoScrollRef.current = false;
+      }
+      return;
+    }
+
+    // 收到新消息时：判断是否在底部附近
+    if (currentCount > prevCount) {
+      const container = messagesContainerRef.current;
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        if (isNearBottom) {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
     }
   }, [messages, lastReadMessageId]);
 
@@ -296,6 +332,7 @@ export default function ChatPage() {
     }
 
     sendMessage(text, 'text', user?.id);
+    shouldAutoScrollRef.current = true;
     if (inputRef.current) {
       inputRef.current.innerHTML = '';
     }
@@ -1434,7 +1471,7 @@ export default function ChatPage() {
                 </button>
               )}
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-4">
               {currentConversation?.type === 'group' && currentConversation?.announcement && !showAnnouncement && !dismissedAnnouncementConvIds.has(currentConversation.id) && (
                 <div 
                   className="mb-4 p-3 rounded-xl bg-biu-primary/[0.08] border border-biu-primary/[0.15] cursor-pointer flex items-start gap-2 transition-colors duration-150 hover:bg-biu-primary/[0.12]"

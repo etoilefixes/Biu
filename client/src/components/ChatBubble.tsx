@@ -157,7 +157,7 @@ function ReasoningBlock({ reasoning, isStreaming }: { reasoning: string; isStrea
   );
 }
 
-export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry, memberMap }: Props) {
+export default React.memo(function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry, memberMap }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const status = (message as any)._status;
@@ -344,4 +344,4 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry,
       )}
     </>
   );
-}
+})
