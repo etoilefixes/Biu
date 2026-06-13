@@ -61,9 +61,9 @@ export interface Message {
   conversationId: string;
   senderId: string;
   content: string;
-  type: 'text' | 'image' | 'file' | 'card';
+  type: 'text' | 'image' | 'file' | 'card' | 'system';
   cardType?: string | null;
-  cardData?: CardData | null;
+  cardData?: CardData | SystemCardData | null;
   mentions?: string[] | null;
   mentionsAll?: boolean;
   createdAt: string;
@@ -75,6 +75,29 @@ export interface CardData {
   body?: string;
   link?: string;
   reasoning?: string;
+}
+
+export type SystemAction =
+  | 'group_create'
+  | 'group_join'
+  | 'group_leave'
+  | 'group_remove'
+  | 'group_rename'
+  | 'group_announcement'
+  | 'group_nickname'
+  | 'group_role'
+  | 'group_transfer'
+  | 'group_dissolve'
+  | 'message_recall';
+
+export interface SystemCardData {
+  action: SystemAction;
+  actorId: string;
+  actorName: string;
+  targetId?: string;
+  targetName?: string;
+  oldValue?: string;
+  newValue?: string;
 }
 
 export type StreamEventType = 'start' | 'content' | 'reasoning' | 'done' | 'error';

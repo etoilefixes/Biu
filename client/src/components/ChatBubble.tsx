@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Message, CardData } from '@biu/shared';
+import { Message, CardData, SystemCardData } from '@biu/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -7,6 +7,28 @@ import UserBadge from './UserBadge';
 import AvatarWithBadge from './AvatarWithBadge';
 import { renderRich } from '../utils/mention';
 import { formatExactTime } from '../utils/time';
+
+/** 根据系统消息的 action 和 cardData 生成展示文本 */
+function getSystemMessageText(cardType: string | null, cardData: SystemCardData | null): string {
+  if (!cardData) return '';
+  const { actorName, targetName, oldValue, newValue } = cardData;
+  switch (cardType) {
+    case 'group_create': return `${actorName} 创建了群聊`;
+    case 'group_join': return `${actorName} 邀请 ${targetName} 加入了群聊`;
+    case 'group_leave': return `${actorName} 退出了群聊`;
+    case 'group_remove': return `${actorName} 将 ${targetName} 移出了群聊`;
+    case 'group_rename': return `${actorName} 修改群名为「${newValue}」`;
+    case 'group_announcement': return `${actorName} 发布了新公告`;
+    case 'group_nickname': return `${actorName} 修改了自己的群昵称为「${newValue}」`;
+    case 'group_role': return newValue === 'admin'
+      ? `${actorName} 将 ${targetName} 设为管理员`
+      : `${actorName} 取消了 ${targetName} 的管理员`;
+    case 'group_transfer': return `${actorName} 将群主转让给 ${targetName}`;
+    case 'group_dissolve': return `${actorName} 已解散群聊`;
+    case 'message_recall': return `${actorName} 撤回了一条消息`;
+    default: return '';
+  }
+}
 
 interface Props {
   message: Message;
@@ -17,17 +39,20 @@ interface Props {
   memberMap?: Map<string, string>;
 }
 
-function CardMessage({ cardType, cardData }: { cardType?: string | null; cardData?: CardData | null }) {
+function CardMessage({ cardType, cardData }: { cardType?: string | null; cardData?: CardData | SystemCardData | null }) {
   if (!cardType || !cardData) return null;
+
+  // 系统消息不会走到这里（已在 ChatBubble 中拦截），安全断言为 CardData
+  const data = cardData as CardData;
 
   if (cardType === 'welcome') {
     return (
       <div className="rounded-xl bg-gradient-to-br from-biu-primary/10 to-biu-primary/5 border border-biu-primary/20 p-4 min-w-[200px]">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">👋</span>
-          <span className="text-biu-primary font-display font-600 text-sm">{cardData.title || '欢迎'}</span>
+          <span className="text-biu-primary font-display font-600 text-sm">{data.title || '欢迎'}</span>
         </div>
-        <p className="text-gray-300 text-xs font-body leading-relaxed">{cardData.body || ''}</p>
+        <p className="text-gray-300 text-xs font-body leading-relaxed">{data.body || ''}</p>
       </div>
     );
   }
@@ -37,9 +62,9 @@ function CardMessage({ cardType, cardData }: { cardType?: string | null; cardDat
       <div className="rounded-xl bg-gradient-to-br from-biu-accent/10 to-biu-accent/5 border border-biu-accent/20 p-4 min-w-[200px]">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">🤝</span>
-          <span className="text-biu-accent font-display font-600 text-sm">{cardData.title || '新朋友'}</span>
+          <span className="text-biu-accent font-display font-600 text-sm">{data.title || '新朋友'}</span>
         </div>
-        <p className="text-gray-300 text-xs font-body leading-relaxed">{cardData.body || ''}</p>
+        <p className="text-gray-300 text-xs font-body leading-relaxed">{data.body || ''}</p>
       </div>
     );
   }
@@ -49,11 +74,11 @@ function CardMessage({ cardType, cardData }: { cardType?: string | null; cardDat
       <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-4 min-w-[200px]">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">📢</span>
-          <span className="text-blue-400 font-display font-600 text-sm">{cardData.title || '通知'}</span>
+          <span className="text-blue-400 font-display font-600 text-sm">{data.title || '通知'}</span>
         </div>
-        <p className="text-gray-300 text-xs font-body leading-relaxed">{cardData.body || ''}</p>
-        {cardData.link && (
-          <a href={cardData.link} target="_blank" rel="noopener noreferrer" className="text-biu-primary text-xs hover:underline mt-2 inline-block font-body">
+        <p className="text-gray-300 text-xs font-body leading-relaxed">{data.body || ''}</p>
+        {data.link && (
+          <a href={data.link} target="_blank" rel="noopener noreferrer" className="text-biu-primary text-xs hover:underline mt-2 inline-block font-body">
             查看详情 →
           </a>
         )}
@@ -66,9 +91,9 @@ function CardMessage({ cardType, cardData }: { cardType?: string | null; cardDat
       <div className="rounded-xl bg-gradient-to-br from-biu-primary/15 to-biu-primary/5 border border-biu-primary/30 p-5 min-w-[220px]">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xl">📢</span>
-          <span className="text-biu-primary font-display font-600 text-base">{cardData.title || '官方公告'}</span>
+          <span className="text-biu-primary font-display font-600 text-base">{data.title || '官方公告'}</span>
         </div>
-        <p className="text-gray-200 text-sm font-body leading-relaxed">{cardData.body || ''}</p>
+        <p className="text-gray-200 text-sm font-body leading-relaxed">{data.body || ''}</p>
         <div className="mt-3 pt-3 border-t border-biu-primary/10">
           <span className="text-biu-primary/60 text-[11px] font-body">Biu 官方</span>
         </div>
@@ -78,8 +103,8 @@ function CardMessage({ cardType, cardData }: { cardType?: string | null; cardDat
 
   return (
     <div className="rounded-xl bg-white/5 border border-white/10 p-4 min-w-[200px]">
-      <p className="text-white text-sm font-display font-600 mb-1">{cardData.title || cardType}</p>
-      {cardData.body && <p className="text-gray-400 text-xs font-body">{cardData.body}</p>}
+      <p className="text-white text-sm font-display font-600 mb-1">{data.title || cardType}</p>
+      {data.body && <p className="text-gray-400 text-xs font-body">{data.body}</p>}
     </div>
   );
 }
@@ -137,10 +162,24 @@ export default function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry,
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const status = (message as any)._status;
   const isCard = message.type === 'card';
+  const isSystemMsg = message.type === 'system';
   const isSystem = message.sender?.isSystem;
   const isStreaming = (message as any)._isStreaming;
   const streamingReasoning = (message as any)._streamingReasoning;
   const aiReasoning = message.cardType === 'ai_reasoning' && message.cardData && 'reasoning' in message.cardData ? message.cardData.reasoning : null;
+
+  // 系统消息：居中灰字，无头像，无长按菜单
+  if (isSystemMsg) {
+    const text = getSystemMessageText(message.cardType ?? null, message.cardData as SystemCardData | null);
+    if (!text) return null;
+    return (
+      <div className="flex justify-center mb-3 animate-message-in">
+        <span className="text-gray-500 text-xs bg-white/5 px-3 py-1 rounded-full">
+          {text}
+        </span>
+      </div>
+    );
+  }
 
   // AI 角色用户不显示 AI 徽章（本身已是 AI 会话，无需额外标识）
   const senderBadges = (message.sender as any)?.username?.startsWith('ai_role_')

@@ -59,7 +59,7 @@ export async function getMessages(
       conversationId: m.conversationId,
       senderId: m.senderId,
       content: m.content,
-      type: m.type as 'text' | 'image' | 'file' | 'card',
+      type: m.type as 'text' | 'image' | 'file' | 'card' | 'system',
       cardType: m.cardType,
       cardData: m.cardData ? JSON.parse(m.cardData) : null,
       mentions: m.mentions ? JSON.parse(m.mentions) : null,
@@ -157,7 +157,7 @@ export async function createMessage(
     conversationId: message.conversationId,
     senderId: message.senderId,
     content: message.content,
-    type: message.type as 'text' | 'image' | 'file' | 'card',
+    type: message.type as 'text' | 'image' | 'file' | 'card' | 'system',
     cardType: message.cardType,
     cardData: message.cardData ? JSON.parse(message.cardData) : null,
     mentions: message.mentions ? JSON.parse(message.mentions) : null,
@@ -167,6 +167,68 @@ export async function createMessage(
       ...message.sender,
       status: message.sender.status as 'online' | 'offline' | 'away',
       isSystem: message.sender.isSystem || false,
+      badges: message.sender.badges.map((ub: any) => ({
+        type: ub.badge.type,
+        label: ub.badge.label,
+        icon: ub.badge.icon,
+        color: ub.badge.color,
+      })),
+    },
+  };
+}
+
+/**
+ * 创建系统消息（跳过权限检查，不触发未读计数）
+ * 系统消息的 senderId 使用系统用户，cardType 为 action 名，cardData 包含操作详情
+ */
+export async function createSystemMessage(
+  conversationId: string,
+  cardType: string,
+  cardData: Record<string, any>,
+  content?: string
+) {
+  // 查找系统用户作为 sender
+  const systemUser = await prisma.user.findFirst({
+    where: { isSystem: true },
+  });
+  if (!systemUser) {
+    console.warn('System user not found, skipping system message');
+    return null;
+  }
+
+  const message = await prisma.message.create({
+    data: {
+      conversationId,
+      senderId: systemUser.id,
+      content: content || '',
+      type: 'system',
+      cardType,
+      cardData: JSON.stringify(cardData),
+      mentions: null,
+      mentionsAll: false,
+    },
+    include: {
+      sender: {
+        select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
+      },
+    },
+  });
+
+  return {
+    id: message.id,
+    conversationId: message.conversationId,
+    senderId: message.senderId,
+    content: message.content,
+    type: 'system' as const,
+    cardType: message.cardType,
+    cardData: message.cardData ? JSON.parse(message.cardData) : null,
+    mentions: null,
+    mentionsAll: false,
+    createdAt: message.createdAt.toISOString(),
+    sender: {
+      ...message.sender,
+      status: message.sender.status as 'online' | 'offline' | 'away',
+      isSystem: true,
       badges: message.sender.badges.map((ub: any) => ({
         type: ub.badge.type,
         label: ub.badge.label,

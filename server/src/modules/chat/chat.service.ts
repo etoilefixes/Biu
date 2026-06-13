@@ -1,6 +1,9 @@
 import { prisma } from '../../config/database';
 import { generateConversationBiuId, generateGroupBiuId } from '../../utils/biuId';
 import { isConversationManager, canRemoveConversationMember, canConversationAction } from '../auth/permissions';
+import { createSystemMessage } from '../message/message.service';
+import { redis } from '../../config/redis';
+import { getIo } from '../../socket';
 
 export async function getConversations(userId: string) {
   const memberships = await prisma.conversationMember.findMany({
@@ -374,6 +377,15 @@ export async function updateGroupName(
     },
   });
 
+  // 系统消息：群名变更
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } });
+  await broadcastSystemMessage(conversationId, 'group_rename', {
+    actorId: userId,
+    actorName: actor?.nickname || '用户',
+    oldValue: conversation.name || '',
+    newValue: name,
+  });
+
   return formatConversation(updated, userId);
 }
 
@@ -395,6 +407,14 @@ export async function updateMemberNickname(
         select: { id: true, username: true, nickname: true, avatar: true, status: true, isSystem: true, badges: { include: { badge: true } } },
       },
     },
+  });
+
+  // 系统消息：群昵称变更
+  await broadcastSystemMessage(conversationId, 'group_nickname', {
+    actorId: userId,
+    actorName: updatedMember.user.nickname || '用户',
+    oldValue: membership.nickname || '',
+    newValue: nickname,
   });
 
   return {
@@ -448,6 +468,14 @@ export async function setAnnouncement(
     },
   });
 
+  // 系统消息：公告变更
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } });
+  await broadcastSystemMessage(conversationId, 'group_announcement', {
+    actorId: userId,
+    actorName: actor?.nickname || '用户',
+    newValue: announcement || '',
+  });
+
   return formatConversation(updated, userId);
 }
 
@@ -486,6 +514,16 @@ export async function removeMember(
 
   if (!memberToRemove) throw new Error('成员不存在');
 
+  // 系统消息：成员被移除（在删除前获取信息）
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } });
+  const target = await prisma.user.findUnique({ where: { id: memberToRemove.userId }, select: { nickname: true } });
+  await broadcastSystemMessage(conversationId, 'group_remove', {
+    actorId: userId,
+    actorName: actor?.nickname || '管理员',
+    targetId: memberToRemove.userId,
+    targetName: target?.nickname || '用户',
+  });
+
   await prisma.conversationMember.delete({
     where: { id: memberId },
   });
@@ -508,6 +546,13 @@ export async function leaveGroup(
   });
 
   if (conversation?.type !== 'group') throw new Error('只能退出群聊');
+
+  // 系统消息：成员退出（在删除前获取信息）
+  const leaver = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } });
+  await broadcastSystemMessage(conversationId, 'group_leave', {
+    actorId: userId,
+    actorName: leaver?.nickname || '用户',
+  });
 
   // 如果只剩一个人，直接删除整个群
   if (conversation._count.members <= 1) {
@@ -599,6 +644,17 @@ export async function setMemberRole(
     data: { role },
   });
 
+  // 系统消息：角色变更
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } });
+  const target = await prisma.user.findUnique({ where: { id: targetMember.userId }, select: { nickname: true } });
+  await broadcastSystemMessage(conversationId, 'group_role', {
+    actorId: userId,
+    actorName: actor?.nickname || '群主',
+    targetId: targetMember.userId,
+    targetName: target?.nickname || '用户',
+    newValue: role,
+  });
+
   return { success: true };
 }
 
@@ -642,6 +698,16 @@ export async function transferOwnership(
   await prisma.conversationMember.update({
     where: { id: newOwnerMember.id },
     data: { role: 'owner' },
+  });
+
+  // 系统消息：转让群主
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } });
+  const target = await prisma.user.findUnique({ where: { id: newOwnerUserId }, select: { nickname: true } });
+  await broadcastSystemMessage(conversationId, 'group_transfer', {
+    actorId: userId,
+    actorName: actor?.nickname || '群主',
+    targetId: newOwnerUserId,
+    targetName: target?.nickname || '用户',
   });
 
   return { success: true };
@@ -748,6 +814,15 @@ export async function addMemberToConversation(userId: string, conversationId: st
     include: { user: true },
   });
 
+  // 系统消息：成员加入
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } });
+  await broadcastSystemMessage(conversationId, 'group_join', {
+    actorId: userId,
+    actorName: actor?.nickname || '用户',
+    targetId: memberUserId,
+    targetName: user.nickname || '用户',
+  });
+
   return {
     id: newMember.id,
     conversationId: newMember.conversationId,
@@ -818,4 +893,33 @@ export async function getConversationDetail(conversationId: string, userId: stri
       },
     })),
   };
+}
+
+/**
+ * 创建并广播系统消息到会话所有成员（不触发未读计数）
+ */
+async function broadcastSystemMessage(
+  conversationId: string,
+  action: string,
+  cardData: Record<string, any>,
+  content?: string
+) {
+  const sysMsg = await createSystemMessage(conversationId, action, cardData, content);
+  if (!sysMsg) return;
+
+  try {
+    const io = getIo();
+    const members = await prisma.conversationMember.findMany({
+      where: { conversationId },
+      select: { userId: true },
+    });
+    for (const member of members) {
+      const socketId = await redis.get(`user:socket:${member.userId}`);
+      if (socketId) {
+        io.to(socketId).emit('chat:message', sysMsg);
+      }
+    }
+  } catch {
+    // socket 未初始化时静默忽略
+  }
 }

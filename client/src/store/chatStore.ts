@@ -329,7 +329,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
-    get().updateConversationLastMessage(message.conversationId, message);
+    // 系统消息不更新会话列表的 lastMessage 预览
+    if (message.type !== 'system') {
+      get().updateConversationLastMessage(message.conversationId, message);
+    }
   },
 
   removeMessage: (tempId) => {
