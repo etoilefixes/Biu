@@ -572,17 +572,26 @@ function AiSettingsPanel() {
   };
 
   // 获取远程模型列表
-  const fetchRemoteModels = async (baseUrl: string, apiKey: string) => {
-    if (!baseUrl.trim()) {
+  const fetchRemoteModels = async (baseUrl: string, apiKey: string, modelId?: string) => {
+    if (!baseUrl.trim() && !modelId) {
+      setRemoteModels([]);
+      return;
+    }
+    // 新增时必须同时有 url 和 key
+    if (!modelId && (!baseUrl.trim() || !apiKey.trim())) {
       setRemoteModels([]);
       return;
     }
     try {
       setRemoteModelsLoading(true);
-      const res: any = await api.post('/ai-roles/models/fetch-remote', {
-        baseUrl: baseUrl.trim(),
-        apiKey: apiKey || undefined,
-      });
+      const body: any = {};
+      if (modelId && !apiKey.trim()) {
+        body.modelId = modelId;
+      } else {
+        body.baseUrl = baseUrl.trim();
+        body.apiKey = apiKey.trim();
+      }
+      const res: any = await api.post('/ai-roles/models/fetch-remote', body);
       const data = res.data ?? res;
       if (data.success && Array.isArray(data.models)) {
         setRemoteModels(data.models);
@@ -595,6 +604,28 @@ function AiSettingsPanel() {
       setRemoteModelsLoading(false);
     }
   };
+
+  // URL 和 Key 同时存在时自动获取模型列表
+  useEffect(() => {
+    if (!showModelForm) return;
+    if (editingModel?.id) {
+      // 编辑模式：有 modelId 即可获取（后端用已存 key）
+      if (!modelForm.baseUrl.trim()) return;
+      const timer = setTimeout(() => {
+        fetchRemoteModels(modelForm.baseUrl, modelForm.apiKey, editingModel.id);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+    // 新增模式：必须 url + key 都有
+    if (!modelForm.baseUrl.trim() || !modelForm.apiKey.trim()) {
+      setRemoteModels([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchRemoteModels(modelForm.baseUrl, modelForm.apiKey);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [showModelForm, modelForm.baseUrl, modelForm.apiKey]);
 
   // 模型 CRUD
   const openAddModel = () => {
@@ -615,8 +646,6 @@ function AiSettingsPanel() {
       maxTokens: m.maxTokens ?? 2000,
       temperature: m.temperature ?? 0.7,
     });
-    // 编辑时自动获取远程模型列表
-    fetchRemoteModels(m.baseUrl || '', '');
     setShowModelForm(true);
   };
 
@@ -807,24 +836,13 @@ function AiSettingsPanel() {
               <label className="text-gray-500 text-xs font-medium mb-1 block">
                 API Key {editingModel?.hasApiKey && <span className="text-biu-primary">(已配置)</span>}
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={modelForm.apiKey}
-                  onChange={(e) => setModelForm({ ...modelForm, apiKey: e.target.value })}
-                  placeholder={editingModel?.hasApiKey ? '••••••••（留空保持不变）' : '输入 API Key'}
-                  className="flex-1 px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
-                />
-                <button
-                  type="button"
-                  onClick={() => fetchRemoteModels(modelForm.baseUrl, modelForm.apiKey)}
-                  disabled={remoteModelsLoading || !modelForm.baseUrl.trim()}
-                  className="px-3 py-2 rounded-lg glass-input text-biu-primary text-xs font-body hover:bg-white/10 transition disabled:opacity-30 whitespace-nowrap"
-                  title="获取远程模型列表"
-                >
-                  {remoteModelsLoading ? '...' : '获取'}
-                </button>
-              </div>
+              <input
+                type="password"
+                value={modelForm.apiKey}
+                onChange={(e) => setModelForm({ ...modelForm, apiKey: e.target.value })}
+                placeholder={editingModel?.hasApiKey ? '••••••••（留空保持不变）' : '输入 API Key'}
+                className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm placeholder-gray-600 outline-none font-body"
+              />
             </div>
             <div>
               <label className="text-gray-500 text-xs font-medium mb-1 block">

@@ -31,21 +31,33 @@ export async function listModels(req: AuthRequest, res: Response) {
 // POST /ai-roles/models/fetch-remote — 根据 baseUrl + apiKey 获取远程模型列表
 export async function fetchRemoteModels(req: AuthRequest, res: Response) {
   try {
-    const { baseUrl, apiKey } = req.body;
+    const { baseUrl, apiKey, modelId } = req.body;
 
-    if (!baseUrl) {
+    let finalBaseUrl = baseUrl;
+    let finalApiKey = apiKey;
+
+    // 如果传了 modelId，从数据库取已存的 baseUrl 和 key
+    if (modelId && !finalApiKey) {
+      const existing = await prisma.aiModel.findUnique({ where: { id: modelId } });
+      if (existing) {
+        finalBaseUrl = existing.baseUrl;
+        finalApiKey = existing.apiKeyEncrypted;
+      }
+    }
+
+    if (!finalBaseUrl) {
       res.status(400).json({ code: 400, message: 'baseUrl 为必填项' });
       return;
     }
 
-    const base = baseUrl.replace(/\/+$/, '');
+    const base = finalBaseUrl.replace(/\/+$/, '');
     const url = `${base}/models`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
+    if (finalApiKey) {
+      headers['Authorization'] = `Bearer ${finalApiKey}`;
     }
 
     const response = await fetch(url, {
