@@ -230,15 +230,6 @@ model AiModelConfig {
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
-  // 迁移阶段暂保留旧字段，后续 migration 删除
-  provider              String?  @db.VarChar(50)
-  baseUrl               String?  @map("base_url") @db.VarChar(500)
-  apiKeyEncrypted       String?  @map("api_key_encrypted") @db.VarChar(500)
-  chatModel             String?  @map("chat_model") @db.VarChar(100)
-  reasoningModel        String?  @map("reasoning_model") @db.VarChar(100)
-  maxTokens             Int?     @map("max_tokens")
-  temperature           Float?
-
   @@map("ai_model_configs")
 }
 
