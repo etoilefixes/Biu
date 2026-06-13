@@ -29,9 +29,8 @@ export function registerChatHandlers(io: Server, socket: Socket) {
           const unreadKey = `unread:${memberId}:${data.conversationId}`;
           const count = await redis.incr(unreadKey);
 
-          const memberSocketId = await getSocketId(memberId);
-          if (memberSocketId) {
-            io.to(memberSocketId).emit('chat:unread', {
+          if (socketId) {
+            io.to(socketId).emit('chat:unread', {
               conversationId: data.conversationId,
               count,
             });

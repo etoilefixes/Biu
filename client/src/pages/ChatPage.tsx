@@ -203,6 +203,14 @@ export default function ChatPage() {
       useChatStore.getState().handleStreamEvent(data);
     });
     useChatStore.getState().cleanupStaleSending();
+
+    // 监听 Socket 重连，自动重发失败消息
+    const unsubscribe = socketService.onConnectionChange((connected) => {
+      if (connected) {
+        useChatStore.getState().retryFailedMessages();
+      }
+    });
+
     return () => {
       socketService.offMessage();
       socketService.offTyping();
@@ -210,6 +218,7 @@ export default function ChatPage() {
       socketService.offChatError();
       socketService.offChatAck();
       socketService.offChatStream();
+      unsubscribe();
     };
   }, []);
 

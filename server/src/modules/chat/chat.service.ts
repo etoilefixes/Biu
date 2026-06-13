@@ -117,7 +117,7 @@ export async function getConversations(userId: string) {
 }
 
 async function getLastReadAt(userId: string, conversationId: string): Promise<Date | null> {
-  const { redis } = await import('../../config/redis');
+
   const key = `read:${userId}:${conversationId}`;
   const data = await redis.get(key);
   if (data) return new Date(data);
@@ -138,7 +138,7 @@ export async function markAsRead(userId: string, conversationId: string) {
   });
 
   if (lastMessage) {
-    const { redis } = await import('../../config/redis');
+  
     const key = `read:${userId}:${conversationId}`;
     await redis.set(key, lastMessage.createdAt.toISOString());
 
@@ -177,7 +177,7 @@ export async function markAllAsRead(userId: string) {
     select: { conversationId: true },
   });
 
-  const { redis } = await import('../../config/redis');
+
 
   for (const m of memberships) {
     const lastMessage = await prisma.message.findFirst({
@@ -250,7 +250,7 @@ export async function deleteConversation(userId: string, conversationId: string)
     await prisma.conversation.delete({ where: { id: conversationId } });
   }
 
-  const { redis } = await import('../../config/redis');
+
   const unreadKey = `unread:${userId}:${conversationId}`;
   await redis.del(unreadKey);
   const readKey = `read:${userId}:${conversationId}`;

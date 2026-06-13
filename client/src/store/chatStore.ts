@@ -44,6 +44,7 @@ interface ChatState {
   handleStreamEvent: (data: StreamEvent) => void;
   reset: () => void;
   cleanupStaleSending: () => void;
+  retryFailedMessages: () => void;
 }
 
 function calcTotalUnread(unreadMap: UnreadMap): number {
@@ -603,6 +604,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (changed) {
       set({ messages: updated });
+    }
+  },
+
+  retryFailedMessages: () => {
+    const { messages, currentConversation } = get();
+    if (!currentConversation) return;
+
+    const failedMessages = messages.filter(
+      (m) => (m as any)._status === 'failed' && m.conversationId === currentConversation.id
+    );
+
+    for (const msg of failedMessages) {
+      get().removeMessage(msg.id);
+      get().sendMessage(msg.content, msg.type, msg.senderId || undefined);
     }
   },
 }));
