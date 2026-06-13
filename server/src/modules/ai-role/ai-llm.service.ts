@@ -1,8 +1,11 @@
 import { prisma } from '../../config/database';
 import { getIo } from '../../socket';
 import { ReasoningStreamParser, AiStreamChunk } from './reasoning-parser';
+import { resolveAiModelForPurpose, getFullConfig, ResolvedAiModel } from './ai-model-resolver';
 
 const DEFAULT_CONTEXT_MESSAGE_LIMIT = 20;
+const ARBITRATION_CONTEXT_MESSAGE_LIMIT = 20;
+const ARBITRATION_MAX_CONTEXT_CHARS = 1500;
 const PRIVATE_CONTEXT_MESSAGE_LIMIT = 10;
 
 // 智能触发常量
@@ -41,65 +44,45 @@ interface ArbitrationDecision {
   reason: string;
 }
 
-interface ModelConfig {
-  provider: string;
-  baseUrl: string;
-  apiKey: string;
-  chatModel: string;
-  reasoningModel: string | null;
+/** 行为配置（不含模型连接信息，模型信息通过 resolveAiModelForPurpose 获取） */
+interface BehaviorConfig {
   reasoningEnabled: boolean;
   reasoningMode: string;
   reasoningDisplay: string;
   reasoningEffort: string;
   streamingEnabled: boolean;
-  temperature: number;
-  maxTokens: number;
   contextMessageLimit: number;
   includePrivateContext: boolean;
   aiTriggerMode: string;
 }
 
 /**
- * 获取全局 AI 模型配置
- * 优先从数据库读取，fallback 到环境变量
+ * 获取全局行为配置
+ * 模型连接信息通过 resolveAiModelForPurpose 获取
  */
-async function getGlobalConfig(): Promise<ModelConfig> {
-  const dbConfig = await prisma.aiModelConfig.findFirst();
+async function getBehaviorConfig(): Promise<BehaviorConfig> {
+  const fullConfig = await getFullConfig();
 
-  if (dbConfig) {
+  if (fullConfig) {
     return {
-      provider: dbConfig.provider,
-      baseUrl: dbConfig.baseUrl,
-      apiKey: dbConfig.apiKeyEncrypted || '',
-      chatModel: dbConfig.chatModel,
-      reasoningModel: dbConfig.reasoningModel,
-      reasoningEnabled: dbConfig.reasoningEnabled,
-      reasoningMode: dbConfig.reasoningMode,
-      reasoningDisplay: dbConfig.reasoningDisplay,
-      reasoningEffort: (dbConfig as any).reasoningEffort || 'high',
-      streamingEnabled: dbConfig.streamingEnabled,
-      temperature: dbConfig.temperature,
-      maxTokens: dbConfig.maxTokens,
-      contextMessageLimit: (dbConfig as any).contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT,
-      includePrivateContext: (dbConfig as any).includePrivateContext ?? false,
-      aiTriggerMode: (dbConfig as any).aiTriggerMode || 'always',
+      reasoningEnabled: fullConfig.reasoningEnabled,
+      reasoningMode: fullConfig.reasoningMode || 'none',
+      reasoningDisplay: fullConfig.reasoningDisplay || 'hidden',
+      reasoningEffort: fullConfig.reasoningEffort || 'high',
+      streamingEnabled: fullConfig.streamingEnabled,
+      contextMessageLimit: fullConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT,
+      includePrivateContext: fullConfig.includePrivateContext ?? false,
+      aiTriggerMode: fullConfig.aiTriggerMode || 'always',
     };
   }
 
   // Fallback 到环境变量
   return {
-    provider: process.env.AI_PROVIDER || 'openai-compatible',
-    baseUrl: process.env.AI_BASE_URL || 'https://api.openai.com/v1',
-    apiKey: process.env.AI_API_KEY || '',
-    chatModel: process.env.AI_CHAT_MODEL || 'gpt-3.5-turbo',
-    reasoningModel: process.env.AI_REASONING_MODEL || null,
     reasoningEnabled: process.env.AI_REASONING_ENABLED === 'true',
     reasoningMode: process.env.AI_REASONING_MODE || 'none',
     reasoningDisplay: process.env.AI_REASONING_DISPLAY || 'hidden',
     reasoningEffort: process.env.AI_REASONING_EFFORT || 'high',
     streamingEnabled: process.env.AI_STREAMING !== 'false',
-    temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
     contextMessageLimit: DEFAULT_CONTEXT_MESSAGE_LIMIT,
     includePrivateContext: false,
     aiTriggerMode: 'always',
@@ -137,13 +120,13 @@ export async function generateAiReply(conversationId: string, senderId: string, 
 
   if (senderId === aiUser.id) return;
 
-  // 获取全局配置
-  const globalConfig = await getGlobalConfig();
+  // 获取行为配置
+  const behaviorConfig = await getBehaviorConfig();
 
   // 检查触发模式（手动重新生成 messageId 为空，跳过检查）
   // 私聊场景下始终回复（对方一定是在跟 AI 说话）
-  if (messageId && globalConfig.aiTriggerMode !== 'always' && conversation.type === 'group') {
-    if (globalConfig.aiTriggerMode === 'mention') {
+  if (messageId && behaviorConfig.aiTriggerMode !== 'always' && conversation.type === 'group') {
+    if (behaviorConfig.aiTriggerMode === 'mention') {
       // 仅 @提及触发
       const message = await prisma.message.findUnique({
         where: { id: messageId },
@@ -151,9 +134,9 @@ export async function generateAiReply(conversationId: string, senderId: string, 
       });
       const isMentioned = message?.mentions?.includes(aiUser.id) || message?.mentionsAll;
       if (!isMentioned) return;
-    } else if (globalConfig.aiTriggerMode === 'smart') {
+    } else if (behaviorConfig.aiTriggerMode === 'smart') {
       // 智能触发：完整决策链
-      const decision = await smartTriggerDecision(role, aiUser.id, messageId, conversationId, senderId, globalConfig);
+      const decision = await smartTriggerDecision(role, aiUser.id, messageId, conversationId, senderId, behaviorConfig);
       if (!decision.shouldSpeak) return;
 
       // 如果决策是记录记忆但不发言，只记录不回复
@@ -173,7 +156,7 @@ export async function generateAiReply(conversationId: string, senderId: string, 
   // 'always' 模式或手动重新生成：总是回复
 
   // 获取最近消息作为上下文（使用可配置的条数）
-  const contextLimit = globalConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
+  const contextLimit = behaviorConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
   const recentMessages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
@@ -192,17 +175,20 @@ export async function generateAiReply(conversationId: string, senderId: string, 
     where: { roleId_userId: { roleId, userId: senderId } },
   });
 
-  // 决定使用的模型：用户覆盖 > 角色配置 > 全局配置
-  const effectiveModel = userConfig?.model ?? role.model;
-  const effectiveReasoning = (userConfig?.useReasoning ?? role.useReasoning) && globalConfig.reasoningEnabled;
-  const effectiveTemperature = userConfig?.temperature ?? role.temperature ?? globalConfig.temperature;
-  const effectiveMaxTokens = userConfig?.maxTokens ?? role.maxTokens ?? globalConfig.maxTokens;
+  // 解析模型：聊天和推理用途
+  const chatModel = await resolveAiModelForPurpose('chat');
+  const reasoningModel = await resolveAiModelForPurpose('reasoning');
 
-  const useModel = effectiveModel || globalConfig.chatModel;
+  // 决定是否使用推理：用户覆盖 > 角色配置 > 全局配置
+  const effectiveReasoning = (userConfig?.useReasoning ?? role.useReasoning) && behaviorConfig.reasoningEnabled;
   const useReasoning = effectiveReasoning;
-  const finalModel = useReasoning ? (globalConfig.reasoningModel || useModel) : useModel;
-  const temperature = effectiveTemperature;
-  const maxTokens = effectiveMaxTokens;
+
+  // 用户/角色级可覆盖 temperature 和 maxTokens
+  const temperature = userConfig?.temperature ?? role.temperature ?? chatModel.temperature;
+  const maxTokens = userConfig?.maxTokens ?? role.maxTokens ?? chatModel.maxTokens;
+
+  // 推理模式下使用推理模型
+  const resolvedModel = useReasoning ? reasoningModel : chatModel;
 
   // 构建群成员列表（仅群昵称）
   const memberList = conversation.members
@@ -216,7 +202,7 @@ export async function generateAiReply(conversationId: string, senderId: string, 
   ];
 
   // 如果开启私聊上下文参考，查找发送者与 AI 的私聊历史
-  if (globalConfig.includePrivateContext) {
+  if (behaviorConfig.includePrivateContext) {
     const privateConv = await prisma.conversation.findFirst({
       where: {
         type: 'private',
@@ -268,10 +254,10 @@ export async function generateAiReply(conversationId: string, senderId: string, 
   }
 
   try {
-    if (globalConfig.streamingEnabled) {
-      await streamLLMAndReply(globalConfig, finalModel, llmMessages, temperature, maxTokens, conversationId, aiUser.id, useReasoning);
+    if (behaviorConfig.streamingEnabled) {
+      await streamLLMAndReply(resolvedModel, llmMessages, temperature, maxTokens, conversationId, aiUser.id, useReasoning, behaviorConfig);
     } else {
-      await nonStreamLLMAndReply(globalConfig, finalModel, llmMessages, temperature, maxTokens, conversationId, aiUser.id, useReasoning);
+      await nonStreamLLMAndReply(resolvedModel, llmMessages, temperature, maxTokens, conversationId, aiUser.id, useReasoning, behaviorConfig);
     }
     // 更新 AI 状态（冷却时间、连续计数）
     await updateAiState(conversationId, aiUser.id);
@@ -284,43 +270,43 @@ export async function generateAiReply(conversationId: string, senderId: string, 
  * 流式调用 LLM 并逐步推送 + 最终写入数据库
  */
 async function streamLLMAndReply(
-  config: ModelConfig,
-  model: string,
+  model: ResolvedAiModel,
   messages: LLMMessage[],
   temperature: number,
   maxTokens: number,
   conversationId: string,
   aiUserId: string,
   useReasoning: boolean,
+  behaviorConfig: BehaviorConfig,
 ) {
-  if (!config.apiKey && config.provider !== 'ollama') {
+  if (!model.apiKey && model.provider !== 'ollama') {
     await emitErrorAndSaveFallback(conversationId, aiUserId, 'AI 服务未配置，请联系管理员设置 API Key');
     return;
   }
 
-  const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const url = `${model.baseUrl.replace(/\/+$/, '')}/chat/completions`;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (config.apiKey) {
-    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  if (model.apiKey) {
+    headers['Authorization'] = `Bearer ${model.apiKey}`;
   }
 
   const body: any = {
-    model,
+    model: model.modelName,
     messages,
     temperature,
-    max_tokens: maxTokens,
+    max_tokens: Math.min(maxTokens, 393216),
     stream: true,
   };
 
   // DeepSeek V4 thinking 参数适配
   if (useReasoning) {
-    if (config.provider === 'deepseek' || config.provider === 'openai-compatible') {
+    if (model.provider === 'deepseek' || model.provider === 'openai-compatible') {
       body.thinking = { type: 'enabled' };
-      body.reasoning_effort = config.reasoningEffort || 'high';
+      body.reasoning_effort = behaviorConfig.reasoningEffort || 'high';
     }
   }
 
-  const reasoningMode = useReasoning ? config.reasoningMode : 'none';
+  const reasoningMode = useReasoning ? behaviorConfig.reasoningMode : 'none';
   const parser = new ReasoningStreamParser(reasoningMode);
 
   const io = getIo();
@@ -407,7 +393,7 @@ async function streamLLMAndReply(
               reasoningBuffer += pc.delta;
 
               // 根据配置决定是否推送推理内容
-              if (config.reasoningDisplay !== 'hidden') {
+              if (behaviorConfig.reasoningDisplay !== 'hidden') {
                 for (const [, socketId] of memberSocketIds) {
                   if (socketId) {
                     io.to(socketId).emit('chat:stream', {
@@ -460,23 +446,23 @@ async function streamLLMAndReply(
 
   // 保存最终回复到数据库
   const finalContent = contentBuffer || '（AI 暂时无法回复）';
-  await saveAndBroadcastMessage(conversationId, aiUserId, finalContent, reasoningBuffer, config.reasoningDisplay);
+  await saveAndBroadcastMessage(conversationId, aiUserId, finalContent, reasoningBuffer, behaviorConfig.reasoningDisplay);
 }
 
 /**
  * 非流式调用 LLM（fallback）
  */
 async function nonStreamLLMAndReply(
-  config: ModelConfig,
-  model: string,
+  model: ResolvedAiModel,
   messages: LLMMessage[],
   temperature: number,
   maxTokens: number,
   conversationId: string,
   aiUserId: string,
   useReasoning: boolean,
+  behaviorConfig: BehaviorConfig,
 ) {
-  const reply = await callLLM(config, model, messages, temperature, maxTokens, useReasoning);
+  const reply = await callLLM(model, messages, temperature, maxTokens, useReasoning, behaviorConfig);
   await saveAndBroadcastMessage(conversationId, aiUserId, reply, '', 'hidden');
 }
 
@@ -651,7 +637,7 @@ async function smartTriggerDecision(
   messageId: string,
   conversationId: string,
   senderId: string,
-  config: ModelConfig,
+  behaviorConfig: BehaviorConfig,
 ): Promise<ArbitrationDecision> {
   const silentDecision: ArbitrationDecision = {
     shouldSpeak: false, action: 'silence', targetUser: '', tone: '', length: 'short', delayMs: 0, reason: '默认沉默',
@@ -683,7 +669,7 @@ async function smartTriggerDecision(
     }
 
     // ===== LLM 仲裁层：社交判断 =====
-    const arbitration = await llmArbitration(role, signals, config);
+    const arbitration = await llmArbitration(role, signals, conversationId, aiUserId);
     console.log(`[SmartTrigger] LLM仲裁: shouldSpeak=${arbitration.shouldSpeak}, action=${arbitration.action}, tone=${arbitration.tone}, length=${arbitration.length}, delay=${arbitration.delayMs}ms, reason=${arbitration.reason}`);
 
     // ===== 规则层2：二次校验 =====
@@ -783,23 +769,75 @@ async function extractSignals(
 }
 
 /**
+ * 压缩聊天上下文：将最近消息压缩为简洁摘要，供仲裁模型使用
+ * 策略：每条消息只保留昵称+内容摘要，总长度不超过 ARBITRATION_MAX_CONTEXT_CHARS
+ */
+async function compressChatContext(
+  conversationId: string,
+  aiUserId: string,
+): Promise<string> {
+  const messages = await prisma.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'desc' },
+    take: ARBITRATION_CONTEXT_MESSAGE_LIMIT,
+    include: {
+      sender: { select: { id: true, nickname: true } },
+    },
+  });
+
+  if (messages.length === 0) return '（无聊天记录）';
+
+  messages.reverse();
+
+  const lines: string[] = [];
+  let totalChars = 0;
+
+  for (const msg of messages) {
+    const isAi = msg.senderId === aiUserId;
+    const name = isAi ? 'AI' : msg.sender.nickname;
+    // 每条消息截断到 80 字符
+    const content = msg.content.length > 80 ? msg.content.slice(0, 77) + '...' : msg.content;
+    const line = `${name}: ${content}`;
+
+    if (totalChars + line.length > ARBITRATION_MAX_CONTEXT_CHARS) {
+      // 超出限制，用省略标记收尾
+      lines.unshift('...(更早的消息省略)');
+      break;
+    }
+
+    lines.push(line);
+    totalChars += line.length + 1;
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * LLM 仲裁层：社交判断
  * 输出结构化 JSON 决策
+ * 使用仲裁专用模型（resolveAiModelForPurpose('arbitration')）
  */
 async function llmArbitration(
   role: { id: string; name: string; description: string | null; speakingStyle: string | null; forbiddenTopics: string | null },
   signals: SignalExtraction,
-  config: ModelConfig,
+  conversationId: string,
+  aiUserId: string,
 ): Promise<ArbitrationDecision> {
   const silentDecision: ArbitrationDecision = {
     shouldSpeak: false, action: 'silence', targetUser: '', tone: '', length: 'short', delayMs: 0, reason: 'LLM仲裁默认沉默',
   };
 
   try {
+    // 获取压缩后的聊天上下文
+    const chatContext = await compressChatContext(conversationId, aiUserId);
+
     const prompt = `你是"${role.name}"，一个群聊中的AI角色。现在群里有人发了一条消息，你需要判断自己是否应该回复，以及如何回复。
 
 角色描述：${role.description || '无'}
 说话风格：${role.speakingStyle || '无'}
+
+最近聊天记录（压缩摘要）：
+${chatContext}
 
 当前消息：
 - 发送者：${signals.senderNickname}
@@ -823,16 +861,19 @@ async function llmArbitration(
 请严格按以下JSON格式回复，不要输出其他内容：
 {"shouldSpeak":true/false,"action":"reply/interject/emoji/record_memory/silence","targetUser":"目标用户昵称","tone":"语气","length":"short/medium/long","delayMs":延迟毫秒数,"reason":"决策原因"}`;
 
-    const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    // 使用仲裁专用模型
+    const arbModel = await resolveAiModelForPurpose('arbitration');
+
+    const url = `${arbModel.baseUrl.replace(/\/+$/, '')}/chat/completions`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    if (config.apiKey) {
-      headers['Authorization'] = `Bearer ${config.apiKey}`;
+    if (arbModel.apiKey) {
+      headers['Authorization'] = `Bearer ${arbModel.apiKey}`;
     }
 
     const body = {
-      model: config.chatModel,
+      model: arbModel.modelName,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
       max_tokens: 200,
@@ -952,39 +993,39 @@ export async function resetAiConsecutiveCount(conversationId: string, aiUserId: 
  * 支持 DeepSeek、通义千问、Ollama 等所有兼容 OpenAI 格式的服务
  */
 async function callLLM(
-  config: ModelConfig,
-  model: string,
+  model: ResolvedAiModel,
   messages: LLMMessage[],
   temperature: number = 0.7,
   maxTokens: number = 2000,
   useReasoning: boolean = false,
+  behaviorConfig?: BehaviorConfig,
 ): Promise<string> {
-  if (!config.apiKey && config.provider !== 'ollama') {
+  if (!model.apiKey && model.provider !== 'ollama') {
     return '（AI 服务未配置，请联系管理员设置 API Key）';
   }
 
-  const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const url = `${model.baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  if (config.apiKey) {
-    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  if (model.apiKey) {
+    headers['Authorization'] = `Bearer ${model.apiKey}`;
   }
 
   const body: any = {
-    model,
+    model: model.modelName,
     messages,
     temperature,
-    max_tokens: maxTokens,
+    max_tokens: Math.min(maxTokens, 393216),
   };
 
   // DeepSeek V4 thinking 参数适配
   if (useReasoning) {
-    if (config.provider === 'deepseek' || config.provider === 'openai-compatible') {
+    if (model.provider === 'deepseek' || model.provider === 'openai-compatible') {
       body.thinking = { type: 'enabled' };
-      body.reasoning_effort = config.reasoningEffort || 'high';
+      body.reasoning_effort = behaviorConfig?.reasoningEffort || 'high';
     }
   }
 
@@ -1009,7 +1050,7 @@ async function callLLM(
   const mainContent = choice.message?.content || '（AI 暂时无法回复）';
 
   // 非流式模式下，处理 think-tag 推理内容
-  if (useReasoning && config.reasoningMode === 'think-tag') {
+  if (useReasoning && behaviorConfig?.reasoningMode === 'think-tag') {
     const thinkTagRegex = /<think[^>]*>([\s\S]*?)<\/think>/g;
     const cleaned = mainContent.replace(thinkTagRegex, '').trim();
     return cleaned || mainContent;
@@ -1021,7 +1062,7 @@ async function callLLM(
 /**
  * 测试 AI 连接
  */
-export async function testConnection(config: Partial<ModelConfig>): Promise<{ success: boolean; message: string; models?: string[] }> {
+export async function testConnection(config: { baseUrl?: string; apiKey?: string; provider?: string }): Promise<{ success: boolean; message: string; models?: string[] }> {
   try {
     const url = `${(config.baseUrl || '').replace(/\/+$/, '')}/models`;
     const headers: Record<string, string> = {};
