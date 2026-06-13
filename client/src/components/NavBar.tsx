@@ -7,6 +7,7 @@ import { useNotificationStore } from '../store/notificationStore';
 import Toast from './Toast';
 import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, IconCrown, IconRobot, IconPlus, IconTrash, IconRefresh, IconCheck } from './Icons';
 import GlassCard from './GlassCard';
+import GlassSelect from './GlassSelect';
 import AvatarWithBadge from './AvatarWithBadge';
 import UserBadge from './UserBadge';
 import AiRoleModal from './AiRoleModal';
@@ -811,16 +812,16 @@ function AiSettingsPanel() {
             </div>
             <div>
               <label className="text-gray-500 text-xs font-medium mb-1 block">服务商</label>
-              <select
+              <GlassSelect
                 value={modelForm.provider}
-                onChange={(e) => setModelForm({ ...modelForm, provider: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
-              >
-                <option value="openai-compatible" className="bg-biu-dark">OpenAI Compatible</option>
-                <option value="deepseek" className="bg-biu-dark">DeepSeek</option>
-                <option value="qwen" className="bg-biu-dark">通义千问</option>
-                <option value="ollama" className="bg-biu-dark">Ollama (本地)</option>
-              </select>
+                onChange={(v) => setModelForm({ ...modelForm, provider: v })}
+                options={[
+                  { value: 'openai-compatible', label: 'OpenAI Compatible' },
+                  { value: 'deepseek', label: 'DeepSeek' },
+                  { value: 'qwen', label: '通义千问' },
+                  { value: 'ollama', label: 'Ollama (本地)' },
+                ]}
+              />
             </div>
             <div>
               <label className="text-gray-500 text-xs font-medium mb-1 block">接口地址 (Base URL)</label>
@@ -851,22 +852,18 @@ function AiSettingsPanel() {
                 {!remoteModelsLoading && remoteModels.length > 0 && <span className="text-gray-600 ml-1">({remoteModels.length} 个)</span>}
               </label>
               {remoteModels.length > 0 ? (
-                <select
+                <GlassSelect
                   value={remoteModels.includes(modelForm.modelName) ? modelForm.modelName : '__custom__'}
-                  onChange={(e) => {
-                    if (e.target.value !== '__custom__') {
-                      setModelForm({ ...modelForm, modelName: e.target.value });
+                  onChange={(v) => {
+                    if (v !== '__custom__') {
+                      setModelForm({ ...modelForm, modelName: v });
                     }
                   }}
-                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
-                >
-                  {!remoteModels.includes(modelForm.modelName) && (
-                    <option value="__custom__" className="bg-biu-dark text-gray-500">{modelForm.modelName || '自定义...'}</option>
-                  )}
-                  {remoteModels.map((m) => (
-                    <option key={m} value={m} className="bg-biu-dark">{m}</option>
-                  ))}
-                </select>
+                  options={[
+                    ...(!remoteModels.includes(modelForm.modelName) ? [{ value: '__custom__', label: modelForm.modelName || '自定义...' }] : []),
+                    ...remoteModels.map((m) => ({ value: m, label: m })),
+                  ]}
+                />
               ) : (
                 <input
                   type="text"
@@ -922,42 +919,30 @@ function AiSettingsPanel() {
         <div className="space-y-3">
           <div>
             <label className="text-gray-500 text-xs font-medium mb-1 block">聊天模型 <span className="text-red-400">*</span></label>
-            <select
+            <GlassSelect
               value={chatModelId}
-              onChange={(e) => setChatModelId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
-            >
-              <option value="" className="bg-biu-dark text-gray-500">请选择聊天模型</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id} className="bg-biu-dark">{m.name} ({m.modelName})</option>
-              ))}
-            </select>
+              onChange={(v) => setChatModelId(v)}
+              placeholder="请选择聊天模型"
+              options={models.map((m) => ({ value: m.id, label: `${m.name} (${m.modelName})` }))}
+            />
           </div>
           <div>
             <label className="text-gray-500 text-xs font-medium mb-1 block">推理模型 <span className="text-gray-600 text-[10px]">可选，空则使用聊天模型</span></label>
-            <select
+            <GlassSelect
               value={reasoningModelId}
-              onChange={(e) => setReasoningModelId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
-            >
-              <option value="" className="bg-biu-dark text-gray-500">使用聊天模型</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id} className="bg-biu-dark">{m.name} ({m.modelName})</option>
-              ))}
-            </select>
+              onChange={(v) => setReasoningModelId(v)}
+              placeholder="使用聊天模型"
+              options={models.map((m) => ({ value: m.id, label: `${m.name} (${m.modelName})` }))}
+            />
           </div>
           <div>
             <label className="text-gray-500 text-xs font-medium mb-1 block">仲裁模型 <span className="text-gray-600 text-[10px]">可选，空则使用聊天模型</span></label>
-            <select
+            <GlassSelect
               value={arbitrationModelId}
-              onChange={(e) => setArbitrationModelId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
-            >
-              <option value="" className="bg-biu-dark text-gray-500">使用聊天模型</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id} className="bg-biu-dark">{m.name} ({m.modelName})</option>
-              ))}
-            </select>
+              onChange={(v) => setArbitrationModelId(v)}
+              placeholder="使用聊天模型"
+              options={models.map((m) => ({ value: m.id, label: `${m.name} (${m.modelName})` }))}
+            />
           </div>
         </div>
       </div>
@@ -982,26 +967,26 @@ function AiSettingsPanel() {
             <>
               <div>
                 <label className="text-gray-500 text-xs font-medium mb-1 block">推理强度 (reasoning_effort)</label>
-                <select
+                <GlassSelect
                   value={reasoningEffort}
-                  onChange={(e) => setReasoningEffort(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
-                >
-                  <option value="low" className="bg-biu-dark">低 (low)</option>
-                  <option value="medium" className="bg-biu-dark">中 (medium)</option>
-                  <option value="high" className="bg-biu-dark">高 (high)</option>
-                </select>
+                  onChange={(v) => setReasoningEffort(v)}
+                  options={[
+                    { value: 'low', label: '低 (low)' },
+                    { value: 'medium', label: '中 (medium)' },
+                    { value: 'high', label: '高 (high)' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="text-gray-500 text-xs font-medium mb-1 block">思考内容展示</label>
-                <select
+                <GlassSelect
                   value={reasoningDisplay}
-                  onChange={(e) => setReasoningDisplay(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg glass-input text-white text-sm outline-none font-body bg-transparent"
-                >
-                  <option value="hidden" className="bg-biu-dark">隐藏</option>
-                  <option value="visible" className="bg-biu-dark">折叠显示</option>
-                </select>
+                  onChange={(v) => setReasoningDisplay(v)}
+                  options={[
+                    { value: 'hidden', label: '隐藏' },
+                    { value: 'visible', label: '折叠显示' },
+                  ]}
+                />
               </div>
             </>
           )}
