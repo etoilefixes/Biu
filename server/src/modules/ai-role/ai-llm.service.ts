@@ -1,5 +1,6 @@
 import { prisma } from '../../config/database';
 import { getIo } from '../../socket';
+import { redis } from '../../config/redis';
 import { ReasoningStreamParser, AiStreamChunk } from './reasoning-parser';
 import { resolveAiModelForPurpose, getFullConfig, ResolvedAiModel } from './ai-model-resolver';
 
@@ -311,7 +312,6 @@ async function streamLLMAndReply(
   const parser = new ReasoningStreamParser(reasoningMode);
 
   const io = getIo();
-  const { redis } = await import('../../config/redis');
 
   // 获取会话成员的 socket ID
   const members = await prisma.conversationMember.findMany({
@@ -535,7 +535,7 @@ async function saveAndBroadcastMessage(
     select: { userId: true },
   });
 
-  const { redis } = await import('../../config/redis');
+
   for (const member of members) {
     const socketId = await redis.get(`user:socket:${member.userId}`);
     if (socketId) {
@@ -563,7 +563,7 @@ async function saveAndBroadcastMessage(
  */
 async function emitErrorAndSaveFallback(conversationId: string, aiUserId: string, errorMsg: string) {
   const io = getIo();
-  const { redis } = await import('../../config/redis');
+
 
   const members = await prisma.conversationMember.findMany({
     where: { conversationId },
@@ -670,7 +670,7 @@ async function smartTriggerDecision(
     }
 
     // ===== LLM 仲裁层：社交判断 =====
-    const arbitration = await llmArbitration(role, signals, conversationId, aiUserId, behaviorConfig.arbitrationMaxTokens);
+    const arbitration = await llmArbitration(role, signals, conversationId, aiUserId, behaviorConfig.arbitrationMaxTokens, behaviorConfig.contextMessageLimit);
     console.log(`[SmartTrigger] LLM仲裁: shouldSpeak=${arbitration.shouldSpeak}, action=${arbitration.action}, tone=${arbitration.tone}, length=${arbitration.length}, delay=${arbitration.delayMs}ms, reason=${arbitration.reason}`);
 
     // ===== 规则层2：二次校验 =====
@@ -692,7 +692,7 @@ async function extractSignals(
   conversationId: string,
   senderId: string,
 ): Promise<SignalExtraction> {
-  const { redis } = await import('../../config/redis');
+
 
   // 获取当前消息
   const message = await prisma.message.findUnique({
@@ -711,19 +711,17 @@ async function extractSignals(
   // 1. 是否明确 @提及 AI
   const isMentioned = message?.mentions?.includes(aiUserId) || message?.mentionsAll || false;
 
-  // 2. 是否回复 AI 的消息（检查最近一条消息是否是 AI 发的）
-  const lastAiMessage = await prisma.message.findFirst({
-    where: { conversationId, senderId: aiUserId },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true, createdAt: true },
-  });
-  // 检查当前消息是否是对 AI 消息的回复（通过消息内容中包含 AI 角色名或紧接 AI 消息后）
-  const lastMessage = await prisma.message.findFirst({
-    where: { conversationId },
+  // 2. 是否回复 AI 的消息（当前消息的上一条是否是 AI 发的）
+  const messageBeforeCurrent = await prisma.message.findFirst({
+    where: {
+      conversationId,
+      createdAt: { lt: new Date() },
+      id: { not: messageId },
+    },
     orderBy: { createdAt: 'desc' },
     select: { senderId: true },
   });
-  const isReplyToAi = lastMessage?.senderId === aiUserId && !isMentioned;
+  const isReplyToAi = messageBeforeCurrent?.senderId === aiUserId && !isMentioned;
 
   // 3. 是否是问题（简单规则：包含问号或疑问词）
   const questionPatterns = /[？?]|怎么|什么|为什么|如何|哪|吗|呢|谁|几|多少|能不能|可以|会不会/;
@@ -776,14 +774,14 @@ async function extractSignals(
 async function compressChatContext(
   conversationId: string,
   aiUserId: string,
+  contextMessageLimit: number,
 ): Promise<string> {
-  const behaviorConfig = await getBehaviorConfig();
-  const contextLimit = behaviorConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
+  const limit = contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
 
   const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
-    ...(contextLimit > 0 ? { take: contextLimit } : {}),
+    ...(limit > 0 ? { take: limit } : {}),
     include: {
       sender: { select: { id: true, nickname: true } },
     },
@@ -817,6 +815,7 @@ async function llmArbitration(
   conversationId: string,
   aiUserId: string,
   arbitrationMaxTokens: number,
+  contextMessageLimit: number,
 ): Promise<ArbitrationDecision> {
   const silentDecision: ArbitrationDecision = {
     shouldSpeak: false, action: 'silence', targetUser: '', tone: '', length: 'short', delayMs: 0, reason: 'LLM仲裁默认沉默',
@@ -824,37 +823,20 @@ async function llmArbitration(
 
   try {
     // 获取压缩后的聊天上下文
-    const chatContext = await compressChatContext(conversationId, aiUserId);
+    const chatContext = await compressChatContext(conversationId, aiUserId, contextMessageLimit);
 
-    const prompt = `你是"${role.name}"，一个群聊中的AI角色。现在群里有人发了一条消息，你需要判断自己是否应该回复，以及如何回复。
+    const prompt = `你是群聊AI角色"${role.name}"，判断是否应该回复当前消息。
+${role.description ? `角色：${role.description}` : ''}${role.speakingStyle ? ` 风格：${role.speakingStyle}` : ''}
 
-角色描述：${role.description || '无'}
-说话风格：${role.speakingStyle || '无'}
-
-最近聊天记录（压缩摘要）：
+聊天记录：
 ${chatContext}
 
-当前消息：
-- 发送者：${signals.senderNickname}
-- 内容："${signals.messageContent.slice(0, 300)}"
+当前消息：${signals.senderNickname}："${signals.messageContent.slice(0, 200)}"
+信号：${signals.isQuestion ? '问题 ' : ''}${signals.aiJustSpoke ? 'AI刚发言 ' : ''}连续${signals.aiConsecutiveCount}次 ${signals.interestTriggered ? '触发兴趣' : ''} 速度${signals.chatSpeed}条/分
 
-群聊状态信号：
-- 是否是问题：${signals.isQuestion ? '是' : '否'}
-- 群聊速度：${signals.chatSpeed}条/分钟（${signals.chatSpeed > AI_FAST_CHAT_THRESHOLD ? '快速' : '正常'}节奏）
-- AI刚说过话：${signals.aiJustSpoke ? '是' : '否'}
-- AI连续回复次数：${signals.aiConsecutiveCount}
-- 触发兴趣/记忆/情绪：${signals.interestTriggered ? '是' : '否'}
+判断：1.跟我有关？2.别人期待我回？3.我回会让对话更好？4.现在说突兀吗？
 
-请从以下角度判断：
-1. 场景理解：群里在聊什么话题？
-2. 关系判断：这句话跟我有没有关系？
-3. 社交期待：别人是否期待我回应？
-4. 自我动机：我有没有想参与的理由？
-5. 贡献判断：我说了会不会让对话变好？
-6. 打扰判断：我现在说话会不会突兀？
-
-请严格按以下JSON格式回复，不要输出其他内容：
-{"shouldSpeak":true/false,"action":"reply/interject/emoji/record_memory/silence","targetUser":"目标用户昵称","tone":"语气","length":"short/medium/long","delayMs":延迟毫秒数,"reason":"决策原因"}`;
+严格JSON回复：{"shouldSpeak":bool,"action":"reply/interject/emoji/record_memory/silence","targetUser":"昵称","tone":"语气","length":"short/medium/long","delayMs":毫秒,"reason":"原因"}`;
 
     // 使用仲裁专用模型
     const arbModel = await resolveAiModelForPurpose('arbitration');
@@ -915,26 +897,28 @@ function validateDecision(
   decision: ArbitrationDecision,
   signals: SignalExtraction,
 ): ArbitrationDecision {
+  let result = { ...decision };
+
   // 如果 LLM 说要发言，但 AI 刚说过话且不是被提及，增加延迟
-  if (decision.shouldSpeak && signals.aiJustSpoke && !signals.isMentioned) {
-    decision.delayMs = Math.max(decision.delayMs, 3000);
+  if (result.shouldSpeak && signals.aiJustSpoke && !signals.isMentioned) {
+    result.delayMs = Math.max(result.delayMs, 3000);
   }
 
   // 如果群聊节奏很快且 AI 不是被提及，降低发言欲望
-  if (decision.shouldSpeak && signals.chatSpeed > AI_FAST_CHAT_THRESHOLD && !signals.isMentioned && !signals.isReplyToAi) {
+  if (result.shouldSpeak && signals.chatSpeed > AI_FAST_CHAT_THRESHOLD && !signals.isMentioned && !signals.isReplyToAi) {
     // 快节奏群聊中，非提及情况下更保守
-    if (decision.action === 'interject') {
-      return { ...decision, shouldSpeak: false, action: 'silence', reason: '群聊节奏过快，插话可能突兀' };
+    if (result.action === 'interject') {
+      return { ...result, shouldSpeak: false, action: 'silence', reason: '群聊节奏过快，插话可能突兀' };
     }
   }
 
   // 如果 AI 连续发言接近上限，只允许简短回复
-  if (decision.shouldSpeak && signals.aiConsecutiveCount >= AI_MAX_CONSECUTIVE - 1) {
-    decision.length = 'short';
-    decision.reason += '（接近连续发言上限，限制长度）';
+  if (result.shouldSpeak && signals.aiConsecutiveCount >= AI_MAX_CONSECUTIVE - 1) {
+    result.length = 'short';
+    result.reason += '（接近连续发言上限，限制长度）';
   }
 
-  return decision;
+  return result;
 }
 
 /**
@@ -943,7 +927,7 @@ function validateDecision(
  */
 async function updateAiState(conversationId: string, aiUserId: string): Promise<void> {
   try {
-    const { redis } = await import('../../config/redis');
+  
 
     // 更新冷却时间戳
     const cooldownKey = `ai:cooldown:${conversationId}:${aiUserId}`;
@@ -975,7 +959,7 @@ async function updateAiState(conversationId: string, aiUserId: string): Promise<
  */
 export async function resetAiConsecutiveCount(conversationId: string, aiUserId: string): Promise<void> {
   try {
-    const { redis } = await import('../../config/redis');
+  
     const consecutiveKey = `ai:consecutive:${conversationId}:${aiUserId}`;
     await redis.del(consecutiveKey);
   } catch {
