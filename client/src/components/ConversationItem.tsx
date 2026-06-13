@@ -242,10 +242,11 @@ export default function ConversationItem({
         }}
         className={`relative flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none bg-biu-dark transition-colors duration-150 ${
           active
-            ? 'border-l-2 border-biu-primary bg-biu-primary/[0.06]'
+            ? 'border-l-2 border-biu-primary bg-biu-dark-alt'
             : 'hover:bg-biu-dark-alt border-l-2 border-transparent'
         }`}
       >
+        {active && <div className="absolute inset-0 bg-biu-primary/[0.06] pointer-events-none" />}
         <div className="relative shrink-0">
           <AvatarWithBadge
             fallback={avatarFallback}
