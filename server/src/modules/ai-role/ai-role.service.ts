@@ -91,6 +91,8 @@ export async function updateRole(
     visibility?: string;
   }
 ) {
+  const MAX_TOKENS_LIMIT = 393216;
+
   const existing = await prisma.aiRole.findUnique({ where: { id } });
   if (!existing) throw new Error('角色不存在');
 
@@ -116,7 +118,7 @@ export async function updateRole(
         ...(data.useReasoning !== undefined && { useReasoning: data.useReasoning }),
         ...(data.replyLength !== undefined && { replyLength: data.replyLength }),
         ...(data.temperature !== undefined && { temperature: data.temperature }),
-        ...(data.maxTokens !== undefined && { maxTokens: data.maxTokens }),
+        ...(data.maxTokens !== undefined && { maxTokens: Math.min(Math.max(data.maxTokens, 1), MAX_TOKENS_LIMIT) }),
         ...(data.visibility !== undefined && { visibility: data.visibility }),
       },
       include: {
@@ -143,7 +145,7 @@ export async function updateRole(
         ...(data.useReasoning !== undefined && { useReasoning: data.useReasoning }),
         ...(data.replyLength !== undefined && { replyLength: data.replyLength }),
         ...(data.temperature !== undefined && { temperature: data.temperature }),
-        ...(data.maxTokens !== undefined && { maxTokens: data.maxTokens }),
+        ...(data.maxTokens !== undefined && { maxTokens: Math.min(Math.max(data.maxTokens, 1), MAX_TOKENS_LIMIT) }),
       },
       create: {
         roleId: id,
@@ -152,7 +154,7 @@ export async function updateRole(
         useReasoning: data.useReasoning ?? false,
         replyLength: data.replyLength || 'medium',
         temperature: data.temperature ?? 0.7,
-        maxTokens: data.maxTokens ?? 2000,
+        maxTokens: Math.min(Math.max(data.maxTokens ?? 2000, 1), MAX_TOKENS_LIMIT),
       },
     });
   }

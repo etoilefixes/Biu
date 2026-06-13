@@ -2,8 +2,12 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth';
 import * as controller from './ai-role.controller';
 import * as modelConfigController from './ai-model-config.controller';
+import modelRoutes from './ai-model.routes';
 
 const router = Router();
+
+// AI 模型库路由
+router.use(modelRoutes);
 
 // AI 模型配置路由（放在 /:id 之前，避免被 :id 匹配）
 router.get('/config/model', authMiddleware, modelConfigController.getConfig);
