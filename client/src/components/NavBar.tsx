@@ -474,6 +474,7 @@ function AiSettingsPanel() {
   const [reasoningEffort, setReasoningEffort] = useState('high');
   const [streamingEnabled, setStreamingEnabled] = useState(true);
   const [contextMessageLimit, setContextMessageLimit] = useState(20);
+  const [arbitrationMaxTokens, setArbitrationMaxTokens] = useState(200);
   const [includePrivateContext, setIncludePrivateContext] = useState(false);
   const [aiTriggerMode, setAiTriggerMode] = useState<'always' | 'mention' | 'smart'>('always');
 
@@ -521,6 +522,7 @@ function AiSettingsPanel() {
       setReasoningEffort(cfg.reasoningEffort || 'high');
       setStreamingEnabled(cfg.streamingEnabled ?? true);
       setContextMessageLimit(cfg.contextMessageLimit ?? 20);
+      setArbitrationMaxTokens(cfg.arbitrationMaxTokens ?? 200);
       setIncludePrivateContext(cfg.includePrivateContext ?? false);
       setAiTriggerMode(cfg.aiTriggerMode || 'always');
     } catch (err: any) {
@@ -560,6 +562,7 @@ function AiSettingsPanel() {
         reasoningEffort,
         streamingEnabled,
         contextMessageLimit,
+        arbitrationMaxTokens,
         includePrivateContext,
         aiTriggerMode,
       });
@@ -1026,22 +1029,41 @@ function AiSettingsPanel() {
         <div className="space-y-3">
           <div>
             <label className="text-gray-500 text-xs font-medium mb-1 block">
-              历史消息条数: {contextMessageLimit}
+              历史消息条数: {contextMessageLimit === 0 ? '无限' : contextMessageLimit}
             </label>
             <input
               type="range"
-              min="5"
-              max="50"
+              min="0"
+              max="100"
               step="5"
               value={contextMessageLimit}
               onChange={(e) => setContextMessageLimit(parseInt(e.target.value))}
               className="w-full accent-biu-primary"
             />
             <div className="flex justify-between text-[10px] text-gray-600 font-body mt-0.5">
-              <span>5条</span>
-              <span>50条</span>
+              <span>无限</span>
+              <span>100条</span>
             </div>
-            <p className="text-gray-600 text-[11px] font-body mt-1">AI 回复时参考的最近消息数量，越多越有上下文感但消耗更多 token</p>
+            <p className="text-gray-600 text-[11px] font-body mt-1">AI 回复时参考的最近消息数量，0 为无限，越多越有上下文感但消耗更多 token</p>
+          </div>
+          <div>
+            <label className="text-gray-500 text-xs font-medium mb-1 block">
+              仲裁模型最大输出: {arbitrationMaxTokens}
+            </label>
+            <input
+              type="range"
+              min="50"
+              max="1000"
+              step="50"
+              value={arbitrationMaxTokens}
+              onChange={(e) => setArbitrationMaxTokens(parseInt(e.target.value))}
+              className="w-full accent-biu-primary"
+            />
+            <div className="flex justify-between text-[10px] text-gray-600 font-body mt-0.5">
+              <span>50</span>
+              <span>1000</span>
+            </div>
+            <p className="text-gray-600 text-[11px] font-body mt-1">仲裁模型判断是否回复时的最大输出 token 数，越大决策越详细</p>
           </div>
           <div className="flex items-center justify-between">
             <div>

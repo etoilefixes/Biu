@@ -4,8 +4,6 @@ import { ReasoningStreamParser, AiStreamChunk } from './reasoning-parser';
 import { resolveAiModelForPurpose, getFullConfig, ResolvedAiModel } from './ai-model-resolver';
 
 const DEFAULT_CONTEXT_MESSAGE_LIMIT = 20;
-const ARBITRATION_CONTEXT_MESSAGE_LIMIT = 20;
-const ARBITRATION_MAX_CONTEXT_CHARS = 1500;
 const PRIVATE_CONTEXT_MESSAGE_LIMIT = 10;
 
 // 智能触发常量
@@ -52,6 +50,7 @@ interface BehaviorConfig {
   reasoningEffort: string;
   streamingEnabled: boolean;
   contextMessageLimit: number;
+  arbitrationMaxTokens: number;
   includePrivateContext: boolean;
   aiTriggerMode: string;
 }
@@ -70,7 +69,8 @@ async function getBehaviorConfig(): Promise<BehaviorConfig> {
       reasoningDisplay: fullConfig.reasoningDisplay || 'hidden',
       reasoningEffort: fullConfig.reasoningEffort || 'high',
       streamingEnabled: fullConfig.streamingEnabled,
-      contextMessageLimit: fullConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT,
+      contextMessageLimit: fullConfig.contextMessageLimit ?? DEFAULT_CONTEXT_MESSAGE_LIMIT,
+      arbitrationMaxTokens: fullConfig.arbitrationMaxTokens ?? 200,
       includePrivateContext: fullConfig.includePrivateContext ?? false,
       aiTriggerMode: fullConfig.aiTriggerMode || 'always',
     };
@@ -84,6 +84,7 @@ async function getBehaviorConfig(): Promise<BehaviorConfig> {
     reasoningEffort: process.env.AI_REASONING_EFFORT || 'high',
     streamingEnabled: process.env.AI_STREAMING !== 'false',
     contextMessageLimit: DEFAULT_CONTEXT_MESSAGE_LIMIT,
+    arbitrationMaxTokens: 200,
     includePrivateContext: false,
     aiTriggerMode: 'always',
   };
@@ -155,12 +156,12 @@ export async function generateAiReply(conversationId: string, senderId: string, 
   }
   // 'always' 模式或手动重新生成：总是回复
 
-  // 获取最近消息作为上下文（使用可配置的条数）
+  // 获取最近消息作为上下文（0=无限）
   const contextLimit = behaviorConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
   const recentMessages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
-    take: contextLimit,
+    ...(contextLimit > 0 ? { take: contextLimit } : {}),
     include: {
       sender: {
         select: { id: true, nickname: true },
@@ -669,7 +670,7 @@ async function smartTriggerDecision(
     }
 
     // ===== LLM 仲裁层：社交判断 =====
-    const arbitration = await llmArbitration(role, signals, conversationId, aiUserId);
+    const arbitration = await llmArbitration(role, signals, conversationId, aiUserId, behaviorConfig.arbitrationMaxTokens);
     console.log(`[SmartTrigger] LLM仲裁: shouldSpeak=${arbitration.shouldSpeak}, action=${arbitration.action}, tone=${arbitration.tone}, length=${arbitration.length}, delay=${arbitration.delayMs}ms, reason=${arbitration.reason}`);
 
     // ===== 规则层2：二次校验 =====
@@ -770,16 +771,19 @@ async function extractSignals(
 
 /**
  * 压缩聊天上下文：将最近消息压缩为简洁摘要，供仲裁模型使用
- * 策略：每条消息只保留昵称+内容摘要，总长度不超过 ARBITRATION_MAX_CONTEXT_CHARS
+ * 条数与聊天模型相同（0=无限），每条消息截断到 80 字符，不限制总长度
  */
 async function compressChatContext(
   conversationId: string,
   aiUserId: string,
 ): Promise<string> {
+  const behaviorConfig = await getBehaviorConfig();
+  const contextLimit = behaviorConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
+
   const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
-    take: ARBITRATION_CONTEXT_MESSAGE_LIMIT,
+    ...(contextLimit > 0 ? { take: contextLimit } : {}),
     include: {
       sender: { select: { id: true, nickname: true } },
     },
@@ -790,23 +794,13 @@ async function compressChatContext(
   messages.reverse();
 
   const lines: string[] = [];
-  let totalChars = 0;
 
   for (const msg of messages) {
     const isAi = msg.senderId === aiUserId;
     const name = isAi ? 'AI' : msg.sender.nickname;
     // 每条消息截断到 80 字符
     const content = msg.content.length > 80 ? msg.content.slice(0, 77) + '...' : msg.content;
-    const line = `${name}: ${content}`;
-
-    if (totalChars + line.length > ARBITRATION_MAX_CONTEXT_CHARS) {
-      // 超出限制，用省略标记收尾
-      lines.unshift('...(更早的消息省略)');
-      break;
-    }
-
-    lines.push(line);
-    totalChars += line.length + 1;
+    lines.push(`${name}: ${content}`);
   }
 
   return lines.join('\n');
@@ -822,6 +816,7 @@ async function llmArbitration(
   signals: SignalExtraction,
   conversationId: string,
   aiUserId: string,
+  arbitrationMaxTokens: number,
 ): Promise<ArbitrationDecision> {
   const silentDecision: ArbitrationDecision = {
     shouldSpeak: false, action: 'silence', targetUser: '', tone: '', length: 'short', delayMs: 0, reason: 'LLM仲裁默认沉默',
@@ -876,7 +871,7 @@ ${chatContext}
       model: arbModel.modelName,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
-      max_tokens: 200,
+      max_tokens: arbitrationMaxTokens,
     };
 
     const response = await fetch(url, {
