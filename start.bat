@@ -19,6 +19,23 @@ if not exist "%ROOT%\client" (
     pause & exit /b 1
 )
 
+echo  [0/2] Releasing ports 3001 and 5173...
+
+:: 释放端口 3001
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3001 " ^| findstr "LISTENING"') do (
+    echo  Killing PID %%a on port 3001...
+    taskkill /F /PID %%a >nul 2>&1
+)
+
+:: 释放端口 5173
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5173 " ^| findstr "LISTENING"') do (
+    echo  Killing PID %%a on port 5173...
+    taskkill /F /PID %%a >nul 2>&1
+)
+
+echo  Ports released.
+echo.
+
 echo  [1/2] Starting backend (port 3001)...
 start "Biu-Backend" cmd /k "cd /d "%ROOT%\server" && npm run dev"
 
