@@ -2,6 +2,30 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 
+// emoji-mart 中文翻译
+const zhCN = {
+  search: '搜索',
+  clear: '清除',
+  noEmojiFound: '未找到表情',
+  skinToneLabel: '肤色',
+  skinTones: ['默认', '浅色', '中浅', '中等', '中深', '深色'],
+  categories: {
+    search: '搜索结果',
+    frequent: '常用',
+    smileys: '表情与情感',
+    people: '人物与身体',
+    nature: '动物与自然',
+    foods: '食物与饮料',
+    activity: '活动',
+    places: '旅行与地点',
+    objects: '物品',
+    symbols: '符号',
+    flags: '旗帜',
+    custom: '自定义',
+  },
+  categoriesLabel: '表情分类',
+};
+
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void;
   onClose: () => void;
@@ -58,6 +82,7 @@ export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
     <div ref={ref} className="absolute bottom-full left-0 mb-2 z-50 animate-scale-in">
       <Picker
         data={data}
+        i18n={zhCN}
         onEmojiSelect={handleSelect}
         theme="dark"
         set="native"
