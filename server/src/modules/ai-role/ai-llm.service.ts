@@ -159,8 +159,15 @@ export async function generateAiReply(conversationId: string, senderId: string, 
 
   // 获取最近消息作为上下文（0=无限）
   const contextLimit = behaviorConfig.contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
+
+  // 检查上下文断点：AI 只看断点之后的消息
+  const cutoffTime = await redis.get(`ai:context_cutoff:${conversationId}`);
+
   const recentMessages = await prisma.message.findMany({
-    where: { conversationId },
+    where: {
+      conversationId,
+      ...(cutoffTime ? { createdAt: { gt: new Date(cutoffTime) } } : {}),
+    },
     orderBy: { createdAt: 'desc' },
     ...(contextLimit > 0 ? { take: contextLimit } : {}),
     include: {
@@ -778,8 +785,14 @@ async function compressChatContext(
 ): Promise<string> {
   const limit = contextMessageLimit || DEFAULT_CONTEXT_MESSAGE_LIMIT;
 
+  // 检查上下文断点：AI 只看断点之后的消息
+  const cutoffTime = await redis.get(`ai:context_cutoff:${conversationId}`);
+
   const messages = await prisma.message.findMany({
-    where: { conversationId },
+    where: {
+      conversationId,
+      ...(cutoffTime ? { createdAt: { gt: new Date(cutoffTime) } } : {}),
+    },
     orderBy: { createdAt: 'desc' },
     ...(limit > 0 ? { take: limit } : {}),
     include: {

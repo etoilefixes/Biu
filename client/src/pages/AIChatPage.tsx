@@ -184,10 +184,10 @@ export default function AIChatPage() {
     if (!currentConversation) return;
     setClearing(true);
     try {
-      await api.delete(`/ai-roles/conversations/${currentConversation.id}/messages`);
-      await loadConversations();
-      await selectConversation(currentConversation);
-      setToast({ message: '上下文已清除', type: 'success' });
+      const res = await api.delete(`/ai-roles/conversations/${currentConversation.id}/messages`);
+      const { aiRoleName, convName } = res.data?.data || {};
+      setToast({ message: `${aiRoleName || 'AI'}在${convName || '本次会话'}的上下文已被清除`, type: 'success' });
+      // 不需要重新加载消息，系统消息会通过 Socket 自动推送
     } catch (err: any) {
       setToast({ message: err.message || '清除失败', type: 'error' });
     } finally {

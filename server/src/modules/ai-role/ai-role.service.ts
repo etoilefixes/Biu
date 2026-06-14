@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database';
+import { redis } from '../../config/redis';
 import { generateConversationBiuId } from '../../utils/biuId';
 import * as badgeService from '../badge/badge.service';
 import { canUpdateAiCharacter, canDeleteAiCharacter, canUpdateAiCharacterOverride } from '../auth/permissions';
@@ -394,14 +395,19 @@ async function mergeUserConfigs(roles: any[], userId: string) {
 }
 
 /**
- * 清除 AI 会话中的所有消息（删除数据库记录）
- * 支持 AI 角色会话、系统用户会话和其他 AI 工作台内的会话
+ * 清除 AI 会话的模型上下文（不删除消息，只设置上下文断点）
+ * AI 后续回复将只使用断点之后的消息作为上下文
+ * 同时发送一条系统消息到会话中提示用户
  */
 export async function clearConversationMessages(conversationId: string, userId: string) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
     include: {
-      members: { select: { userId: true } },
+      members: {
+        include: {
+          user: { select: { id: true, nickname: true, username: true } },
+        },
+      },
     },
   });
 
@@ -410,19 +416,51 @@ export async function clearConversationMessages(conversationId: string, userId: 
   const isMember = conversation.members.some((m) => m.userId === userId);
   if (!isMember) throw new Error('无权操作此会话');
 
-  // 删除该会话的所有消息
-  const result = await prisma.message.deleteMany({
-    where: { conversationId },
-  });
+  // 设置上下文断点：AI 后续只看此时间之后的消息
+  const cutoffTime = new Date().toISOString();
+  await redis.set(`ai:context_cutoff:${conversationId}`, cutoffTime);
 
-  // 清除 Redis 中的未读计数
-  const { redis } = await import('../../config/redis');
-  for (const member of conversation.members) {
-    const unreadKey = `unread:${member.userId}:${conversationId}`;
-    await redis.del(unreadKey);
+  // 确定 AI 角色名称
+  const aiMember = conversation.members.find((m) => m.user?.username?.startsWith('ai_role_'));
+  const aiRoleName = aiMember?.nickname || aiMember?.user?.nickname || 'AI';
+
+  // 确定会话名称
+  const convName = conversation.type === 'group'
+    ? (conversation.name?.startsWith('__ai_role__') ? aiRoleName : conversation.name)
+    : aiRoleName;
+
+  // 发送系统消息提示上下文已清除
+  const systemUser = await prisma.user.findFirst({ where: { isSystem: true } });
+  if (systemUser) {
+    const systemMsg = await prisma.message.create({
+      data: {
+        conversationId,
+        senderId: systemUser.id,
+        content: `${aiRoleName}在${convName}的上下文已被清除`,
+        type: 'system',
+        cardType: 'group_announcement',
+        cardData: JSON.stringify({
+          actorName: aiRoleName,
+          newValue: `${aiRoleName}在${convName}的上下文已被清除`,
+        }),
+      },
+      include: {
+        sender: { select: { id: true, nickname: true, isSystem: true, badges: true } },
+      },
+    });
+
+    // 通过 Socket 推送系统消息
+    const { getIo } = await import('../../socket');
+    const io = getIo();
+    for (const member of conversation.members) {
+      const socketId = await redis.get(`user:socket:${member.userId}`);
+      if (socketId) {
+        io.to(socketId).emit('chat:message', systemMsg);
+      }
+    }
   }
 
-  return { deletedCount: result.count };
+  return { cutoffTime, aiRoleName, convName };
 }
 
 /**
