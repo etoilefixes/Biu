@@ -69,6 +69,8 @@ export default function AIChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
   const prevMessageCountRef = useRef(0);
+  // 上次会话ID，用于检测会话切换（selectConversation不清空消息，仅靠消息数量无法可靠检测）
+  const prevConversationIdRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 过滤命令列表
@@ -116,8 +118,11 @@ export default function AIChatPage() {
     const currentCount = messages.length;
     prevMessageCountRef.current = currentCount;
 
-    // 切换会话（消息从0变为有数据）
-    if (prevCount === 0 && currentCount > 0) {
+    // 切换会话检测：会话ID变化，或消息从0变为有数据
+    const currentConvId = currentConversation?.id || null;
+    const convChanged = prevConversationIdRef.current !== currentConvId;
+    prevConversationIdRef.current = currentConvId;
+    if (convChanged || (prevCount === 0 && currentCount > 0)) {
       shouldAutoScrollRef.current = true;
     }
 

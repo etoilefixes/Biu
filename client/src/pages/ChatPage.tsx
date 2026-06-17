@@ -87,6 +87,8 @@ export default function ChatPage() {
   const shouldAutoScrollRef = useRef(true);
   // 上次消息数量，用于判断是否是新消息到达
   const prevMessageCountRef = useRef(0);
+  // 上次会话ID，用于检测会话切换（selectConversation不清空消息，仅靠消息数量无法可靠检测）
+  const prevConversationIdRef = useRef<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isDragging = useRef(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -238,8 +240,11 @@ export default function ChatPage() {
     const currentCount = messages.length;
     prevMessageCountRef.current = currentCount;
 
-    // 切换会话（消息从0变为有数据，或会话ID变化）
-    if (prevCount === 0 && currentCount > 0) {
+    // 切换会话检测：会话ID变化，或消息从0变为有数据
+    const currentConvId = currentConversation?.id || null;
+    const convChanged = prevConversationIdRef.current !== currentConvId;
+    prevConversationIdRef.current = currentConvId;
+    if (convChanged || (prevCount === 0 && currentCount > 0)) {
       shouldAutoScrollRef.current = true;
     }
 
