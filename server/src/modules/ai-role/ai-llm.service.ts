@@ -484,13 +484,8 @@ async function saveAndBroadcastMessage(
   reasoningContent: string,
   reasoningDisplay: string,
 ) {
-  // 如果配置为可见，将思考内容附加到消息中（用特殊标记）
-  let finalContent = content;
-  if (reasoningContent && reasoningDisplay !== 'hidden') {
-    // 使用特殊标记存储思考内容，前端可以解析
-    finalContent = content;
-    // 思考内容单独存储在 cardData 中
-  }
+  // 思考内容单独存储在 cardData 中，不附加到 content
+  const finalContent = content;
 
   const message = await prisma.message.create({
     data: {
