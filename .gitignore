@@ -1,3 +1,13 @@
 node_modules/
 dist/
 .superpowers/
+
+# Windows 误产生的空文件
+nul
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 测试/Dogfood 输出
+dogfood-output/
