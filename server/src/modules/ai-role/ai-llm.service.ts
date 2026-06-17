@@ -699,7 +699,7 @@ async function extractSignals(
   // 获取当前消息
   const message = await prisma.message.findUnique({
     where: { id: messageId },
-    select: { content: true, mentions: true, mentionsAll: true },
+    select: { content: true, mentions: true, mentionsAll: true, createdAt: true },
   });
   const messageContent = message?.content || '';
 
@@ -714,10 +714,11 @@ async function extractSignals(
   const isMentioned = message?.mentions?.includes(aiUserId) || message?.mentionsAll || false;
 
   // 2. 是否回复 AI 的消息（当前消息的上一条是否是 AI 发的）
+  // 使用当前消息的 createdAt 而非 new Date()，避免快速群聊中后续消息干扰判断
   const messageBeforeCurrent = await prisma.message.findFirst({
     where: {
       conversationId,
-      createdAt: { lt: new Date() },
+      ...(message?.createdAt ? { createdAt: { lt: message.createdAt } } : { createdAt: { lt: new Date() } }),
       id: { not: messageId },
     },
     orderBy: { createdAt: 'desc' },
