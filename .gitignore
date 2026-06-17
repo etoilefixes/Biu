@@ -11,3 +11,6 @@ __pycache__/
 
 # 测试/Dogfood 输出
 dogfood-output/
+
+# 二进制压缩包（防止误提交无关zip）
+*.zip
