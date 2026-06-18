@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { socketService } from '../services/socket';
@@ -365,8 +366,7 @@ export default function AIChatPage() {
 
         {/* 帮助弹窗 */}
         {showHelpModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowHelpModal(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
             <div className="relative w-[420px] glass-strong rounded-2xl shadow-2xl p-6 animate-scale-in">
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
@@ -402,8 +402,7 @@ export default function AIChatPage() {
 
         {/* 清除确认弹窗 */}
         {showClearConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowClearConfirm(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
             <div className="relative w-[360px] glass-strong rounded-2xl shadow-2xl p-6 animate-scale-in">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center">
@@ -471,40 +470,48 @@ export default function AIChatPage() {
             </div>
             <div className="px-4 pt-3 pb-4 glass-strong border-t border-white/[0.06] relative">
               {/* 命令面板 */}
-              {showCommandPalette && filteredCommands.length > 0 && (
-                <div className="absolute bottom-full left-4 right-4 mb-2">
-                  <div className="glass-strong rounded-xl border border-white/10 shadow-2xl overflow-hidden">
-                    <div className="px-3 py-2 border-b border-white/5">
-                      <span className="text-gray-500 text-xs font-body">命令</span>
-                    </div>
-                    {filteredCommands.map((cmd, index) => (
-                      <button
-                        key={cmd.command}
-                        onClick={() => executeCommand(cmd)}
-                        className={`w-full px-3 py-2.5 flex items-center gap-3 text-left transition-all duration-150 ${
-                          index === selectedCommandIndex
-                            ? 'bg-biu-primary/15'
-                            : 'hover:bg-white/5'
-                        }`}
-                      >
-                        <div className={`w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center ${cmd.color}`}>
-                          {cmd.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-white text-sm font-mono font-600">{cmd.command}</span>
-                            <span className="text-gray-400 text-xs font-body">{cmd.label}</span>
+              <AnimatePresence>
+                {showCommandPalette && filteredCommands.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute bottom-full left-4 right-4 mb-2"
+                  >
+                    <div className="glass-strong rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                      <div className="px-3 py-2 border-b border-white/5">
+                        <span className="text-gray-500 text-xs font-body">命令</span>
+                      </div>
+                      {filteredCommands.map((cmd, index) => (
+                        <button
+                          key={cmd.command}
+                          onClick={() => executeCommand(cmd)}
+                          className={`w-full px-3 py-2.5 flex items-center gap-3 text-left transition-all duration-150 ${
+                            index === selectedCommandIndex
+                              ? 'bg-biu-primary/15'
+                              : 'hover:bg-white/5'
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center ${cmd.color}`}>
+                            {cmd.icon}
                           </div>
-                          <p className="text-gray-600 text-[11px] font-body truncate">{cmd.description}</p>
-                        </div>
-                        {index === selectedCommandIndex && (
-                          <span className="text-gray-600 text-[10px] font-body shrink-0">↵ 执行</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white text-sm font-mono font-600">{cmd.command}</span>
+                              <span className="text-gray-400 text-xs font-body">{cmd.label}</span>
+                            </div>
+                            <p className="text-gray-600 text-[11px] font-body truncate">{cmd.description}</p>
+                          </div>
+                          {index === selectedCommandIndex && (
+                            <span className="text-gray-600 text-[10px] font-body shrink-0">↵ 执行</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="flex gap-3 items-end">
                 <input
                   ref={inputRef}
