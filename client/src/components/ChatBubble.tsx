@@ -258,13 +258,14 @@ export default React.memo(function ChatBubble({ message, isSelf, onCopy, onDelet
                         remarkPlugins={remarkPlugins}
                         rehypePlugins={rehypePlugins}
                         components={{
-                          pre: ({ children, node, ...props }: any) => (
+                          pre: ({ children, ...props }: any) => (
                             <div className="relative group/code">
                               <pre {...props} className="chat-pre-block">{children}</pre>
                               <button
-                                onClick={() => {
-                                  const codeEl = node?.querySelector?.('code')?.textContent || '';
-                                  navigator.clipboard.writeText(codeEl);
+                                onClick={(e) => {
+                                  const preEl = e.currentTarget.parentElement?.querySelector('code');
+                                  const codeText = preEl?.textContent || '';
+                                  navigator.clipboard.writeText(codeText);
                                 }}
                                 className="absolute top-2 right-2 px-2 py-1 rounded-md bg-white/10 text-gray-400 text-[10px] font-body opacity-0 group-hover/code:opacity-100 hover:bg-white/20 transition-all"
                               >
