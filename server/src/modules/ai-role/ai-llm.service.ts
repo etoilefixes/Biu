@@ -452,9 +452,22 @@ async function streamLLMAndReply(
     }
   }
 
-  // 保存最终回复到数据库
+  // 保存最终回复到数据库（支持 ||| 分隔的多条消息）
   const finalContent = contentBuffer || '（AI 暂时无法回复）';
-  await saveAndBroadcastMessage(conversationId, aiUserId, finalContent, reasoningBuffer, behaviorConfig.reasoningDisplay);
+  const messageParts = splitMultiMessage(finalContent);
+  for (let i = 0; i < messageParts.length; i++) {
+    // 思考内容只附在第一条消息上，避免重复
+    const reasoning = i === 0 ? reasoningBuffer : '';
+    await saveAndBroadcastMessage(conversationId, aiUserId, messageParts[i], reasoning, behaviorConfig.reasoningDisplay);
+  }
+}
+
+/**
+ * 将 AI 回复按 ||| 分隔符切分为多条消息，过滤空消息
+ */
+function splitMultiMessage(content: string): string[] {
+  const parts = content.split('|||').map((s) => s.trim()).filter((s) => s.length > 0);
+  return parts.length > 0 ? parts : [content];
 }
 
 /**
@@ -471,7 +484,11 @@ async function nonStreamLLMAndReply(
   behaviorConfig: BehaviorConfig,
 ) {
   const reply = await callLLM(model, messages, temperature, maxTokens, useReasoning, behaviorConfig);
-  await saveAndBroadcastMessage(conversationId, aiUserId, reply, '', 'hidden');
+  // 支持 ||| 分隔的多条消息
+  const replyParts = splitMultiMessage(reply);
+  for (const part of replyParts) {
+    await saveAndBroadcastMessage(conversationId, aiUserId, part, '', 'hidden');
+  }
 }
 
 /**
@@ -626,6 +643,9 @@ function buildSystemPrompt(role: {
   parts.push(lengthGuide[role.replyLength] || lengthGuide.medium);
 
   parts.push('请始终保持角色设定，不要跳出角色。');
+
+  // 多消息发送提示：用 ||| 分隔多条消息，模拟真人分条发送的节奏
+  parts.push('如果想分多条消息发送（更像真人聊天节奏），请用 ||| 作为消息分隔符。例如"晚上好！||| 今天过得怎么样？||| 有什么想聊的吗？"会被拆成三条独立消息依次发送。每条消息应完整独立，不要在分隔符前后留空消息。');
 
   return parts.join('\n');
 }
