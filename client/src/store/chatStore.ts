@@ -171,6 +171,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Fetch messages FIRST — the server returns lastReadAt before mark-read
     const res: any = await api.get(`/messages/${conversation.id}`);
 
+    // 竞态保护：如果在 await 期间用户又切换了会话，丢弃本次响应
+    if (get().currentConversation?.id !== conversation.id) {
+      return;
+    }
+
     // Defensive: handle both new format { messages, lastReadAt } and legacy array
     const fetchedMessages: Message[] = Array.isArray(res.data) ? res.data : (res.data?.messages ?? []);
     const lastReadAt: string | null = Array.isArray(res.data) ? null : (res.data?.lastReadAt ?? null);
