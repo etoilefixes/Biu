@@ -24,7 +24,7 @@ interface ChatState {
   unreadMap: UnreadMap;
   totalUnread: number;
   lastReadMessageId: string | null;
-  streamingMessages: Map<string, { content: string; reasoning: string; isStreaming: boolean }>;
+  streamingMessages: Map<string, { content: string; reasoning: string; isStreaming: boolean; senderId?: string }>;
   loadConversations: () => Promise<void>;
   selectConversation: (conversation: Conversation | null) => Promise<void>;
   sendMessage: (content: string, type?: string, senderId?: string) => void;
@@ -194,6 +194,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // 一次性设置新消息和 lastReadMessageId
     set({ messages: fetchedMessages, lastReadMessageId });
+
+    // 流式恢复：如果该会话仍有活跃的流式输出（用户切换走又切回），重新插入占位消息
+    const activeStream = get().streamingMessages.get(conversation.id);
+    if (activeStream?.isStreaming) {
+      const streamMsg: Message = {
+        id: `stream_${conversation.id}`,
+        conversationId: conversation.id,
+        senderId: activeStream.senderId ?? '',
+        content: activeStream.content,
+        type: 'text',
+        createdAt: new Date().toISOString(),
+        _isStreaming: true,
+        _streamingReasoning: activeStream.reasoning || undefined,
+      } as any;
+      set((state) => ({
+        messages: [...state.messages, streamMsg],
+      }));
+    }
 
     // Now mark as read (after messages are fetched with the anchor)
     api.put(`/conversations/${conversation.id}/read`).catch(() => {});
@@ -473,7 +491,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (type === 'start') {
       // 流式开始：创建占位流式消息
       const newStreaming = new Map(get().streamingMessages);
-      newStreaming.set(conversationId, { content: '', reasoning: '', isStreaming: true });
+      newStreaming.set(conversationId, { content: '', reasoning: '', isStreaming: true, senderId: data.aiUserId });
       set({ streamingMessages: newStreaming });
 
       // 在当前会话的消息列表中添加一个占位消息
