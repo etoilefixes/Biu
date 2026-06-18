@@ -146,6 +146,26 @@ export default function ChatPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
 
+  // @提及 点击查看用户资料
+  const [mentionProfile, setMentionProfile] = useState<{ userId: string; nickname: string; biuId?: string; groupNickname?: string; role?: string } | null>(null);
+
+  const handleMentionClick = useCallback((userId: string) => {
+    if (userId === 'all') {
+      // 点击 @全体成员 不弹资料卡
+      return;
+    }
+    if (!currentConversation?.members) return;
+    const member = currentConversation.members.find((m: any) => m.userId === userId);
+    if (!member) return;
+    setMentionProfile({
+      userId,
+      nickname: member.user?.nickname || member.nickname || '用户',
+      biuId: member.user?.biuId || undefined,
+      groupNickname: member.nickname || undefined,
+      role: member.role || undefined,
+    });
+  }, [currentConversation?.members]);
+
   const filteredCommands = useMemo(() => {
     if (!commandFilter) return SLASH_COMMANDS;
     const filter = commandFilter.toLowerCase();
@@ -309,24 +329,11 @@ export default function ChatPage() {
     const el = inputRef.current;
     if (!el) return '';
 
-    // 使用 innerHTML 解析，正确处理 <br> 和 <div> 产生的换行
+    // 先将 <br> 和 </div><div> 边界转为换行符（contenteditable 换行会产生这些结构）
     let html = el.innerHTML;
-
-    // 将 @displayName 替换为 [at:userId]（在 HTML 层面替换，避免 textContent 丢失结构）
-    // 按 displayName 长度降序处理，避免短名误匹配长名子串（如 @张三 误匹配 @张三丰）
-    const sortedMentions = Array.from(mentionMapRef.current.entries()).sort(
-      (a, b) => b[0].length - a[0].length
-    );
-    for (const [displayName, userId] of sortedMentions) {
-      // displayName 可能被 HTML 实体编码，用文本层面的替换
-      html = html.split(`@${displayName}`).join(`[at:${userId}]`);
-    }
-
-    // 将 <br> 转为换行符
     html = html.replace(/<br\s*\/?>/gi, '\n');
-    // 将 </div><div> 边界转为换行（contenteditable 换行会产生 <div>）
     html = html.replace(/<\/div>\s*<div[^>]*>/gi, '\n');
-    // 去掉所有剩余 HTML 标签
+    // 去掉所有剩余 HTML 标签（避免 contenteditable 把 @displayName 拆成多个节点导致替换失败）
     html = html.replace(/<[^>]+>/g, '');
     // 解码 HTML 实体
     const textarea = document.createElement('textarea');
@@ -335,6 +342,22 @@ export default function ChatPage() {
     // 清理零宽空格和不间断空格
     text = text.replace(/\u200B/g, '');
     text = text.replace(/\u00A0/g, ' ');
+
+    // 在纯文本层面将 @displayName 替换为 [at:userId]
+    // 按 displayName 长度降序处理，避免短名误匹配长名子串（如 @张三 误匹配 @张三丰）
+    const sortedMentions = Array.from(mentionMapRef.current.entries()).sort(
+      (a, b) => b[0].length - a[0].length
+    );
+    for (const [displayName, userId] of sortedMentions) {
+      const atDisplayName = `@${displayName}`;
+      if (text.includes(atDisplayName)) {
+        text = text.split(atDisplayName).join(`[at:${userId}]`);
+      } else {
+        // 输入框里已没有该 mention 文本，清除残留映射，避免误替换后续输入
+        mentionMapRef.current.delete(displayName);
+      }
+    }
+
     return text;
   };
 
@@ -1544,6 +1567,7 @@ export default function ChatPage() {
                       onDelete={handleDeleteMessage}
                       onRetry={handleRetryMessage}
                       memberMap={memberMap}
+                      onMentionClick={handleMentionClick}
                     />
                   </React.Fragment>
                 );
@@ -1697,8 +1721,11 @@ export default function ChatPage() {
                             </button>
                           );
                         })}
-                        {filteredMentionMembers.length === 0 && (
+                        {filteredMentionMembers.length === 0 && currentConversation.type !== 'group' && (
                           <p className="text-gray-500 text-xs text-center py-4">没有可提及的用户</p>
+                        )}
+                        {filteredMentionMembers.length === 0 && currentConversation.type === 'group' && (
+                          <p className="text-gray-500 text-xs text-center py-4">没有匹配的成员</p>
                         )}
                       </div>
                     </motion.div>
@@ -1799,6 +1826,53 @@ export default function ChatPage() {
       {showAiRoleModal && (
         <AiRoleModal onClose={() => setShowAiRoleModal(false)} />
       )}
+
+      {/* @提及 用户资料卡 */}
+      <AnimatePresence>
+        {mentionProfile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setMentionProfile(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="glass-strong rounded-2xl border border-white/10 shadow-xl w-[320px] p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-2xl bg-biu-primary/15 flex items-center justify-center text-biu-primary text-2xl font-bold mb-3">
+                  {mentionProfile.nickname[0]}
+                </div>
+                <h3 className="text-white font-display font-600 text-base mb-1">{mentionProfile.nickname}</h3>
+                {mentionProfile.biuId && (
+                  <p className="text-gray-500 text-xs font-body mb-3">Biu号：{mentionProfile.biuId}</p>
+                )}
+                {mentionProfile.groupNickname && mentionProfile.groupNickname !== mentionProfile.nickname && (
+                  <div className="px-3 py-1 rounded-full bg-white/5 text-gray-400 text-xs font-body mb-3">
+                    群昵称：{mentionProfile.groupNickname}
+                  </div>
+                )}
+                {mentionProfile.role && mentionProfile.role !== 'member' && (
+                  <div className="px-3 py-1 rounded-full bg-biu-primary/10 text-biu-primary text-xs font-body">
+                    {mentionProfile.role === 'owner' ? '群主' : '管理员'}
+                  </div>
+                )}
+                <button
+                  onClick={() => setMentionProfile(null)}
+                  className="mt-5 px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-sm font-body hover:bg-white/10 transition w-full"
+                >
+                  关闭
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

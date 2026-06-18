@@ -2,6 +2,9 @@ import React from 'react';
 
 const MENTION_REGEX = /\[at:([^\]]+)\]/g;
 
+// 浅蓝色：用于 @提及 高亮
+const MENTION_COLOR = '#60a5fa';
+
 /**
  * 纯文本预览：将 [at:userId] 替换为 @显示名，用于会话列表预览等纯文本场景
  * @param text 消息文本
@@ -19,8 +22,13 @@ export function renderPreview(text: string, memberMap?: Map<string, string>): st
  * 富文本渲染：将 [at:userId] 替换为带样式的 JSX 节点，用于聊天气泡等富文本场景
  * @param content 消息内容
  * @param memberMap 可选的 userId→nickname 映射
+ * @param onMentionClick 可选的点击 @提及 回调，参数为 userId（'all' 表示全体成员）
  */
-export function renderRich(content: string, memberMap?: Map<string, string>): React.ReactNode[] {
+export function renderRich(
+  content: string,
+  memberMap?: Map<string, string>,
+  onMentionClick?: (userId: string) => void,
+): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
@@ -43,7 +51,12 @@ export function renderRich(content: string, memberMap?: Map<string, string>): Re
     parts.push(
       <span
         key={`mention-${match.index}`}
-        style={{ color: '#ef4444', fontWeight: 600 }}
+        style={{
+          color: MENTION_COLOR,
+          fontWeight: 600,
+          cursor: onMentionClick ? 'pointer' : 'default',
+        }}
+        onClick={onMentionClick ? () => onMentionClick(userId) : undefined}
       >
         {mentionLabel}
       </span>

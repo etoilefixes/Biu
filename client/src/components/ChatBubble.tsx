@@ -41,6 +41,7 @@ interface Props {
   onDelete?: (id: string) => void;
   onRetry?: (id: string) => void;
   memberMap?: Map<string, string>;
+  onMentionClick?: (userId: string) => void;
 }
 
 function CardMessage({ cardType, cardData }: { cardType?: string | null; cardData?: CardData | SystemCardData | null }) {
@@ -161,7 +162,7 @@ function ReasoningBlock({ reasoning, isStreaming }: { reasoning: string; isStrea
   );
 }
 
-export default React.memo(function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry, memberMap }: Props) {
+export default React.memo(function ChatBubble({ message, isSelf, onCopy, onDelete, onRetry, memberMap, onMentionClick }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const status = (message as any)._status;
@@ -191,7 +192,7 @@ export default React.memo(function ChatBubble({ message, isSelf, onCopy, onDelet
     : message.sender?.badges;
 
   // 解析 @ 提及（富文本渲染）
-  const renderedContent = useMemo(() => renderRich(message.content, memberMap), [message.content, memberMap]);
+  const renderedContent = useMemo(() => renderRich(message.content, memberMap, onMentionClick), [message.content, memberMap, onMentionClick]);
 
 
   const handleContextMenu = (e: React.MouseEvent) => {
