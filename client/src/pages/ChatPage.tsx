@@ -313,10 +313,14 @@ export default function ChatPage() {
     let html = el.innerHTML;
 
     // 将 @displayName 替换为 [at:userId]（在 HTML 层面替换，避免 textContent 丢失结构）
-    mentionMapRef.current.forEach((userId, displayName) => {
+    // 按 displayName 长度降序处理，避免短名误匹配长名子串（如 @张三 误匹配 @张三丰）
+    const sortedMentions = Array.from(mentionMapRef.current.entries()).sort(
+      (a, b) => b[0].length - a[0].length
+    );
+    for (const [displayName, userId] of sortedMentions) {
       // displayName 可能被 HTML 实体编码，用文本层面的替换
       html = html.split(`@${displayName}`).join(`[at:${userId}]`);
-    });
+    }
 
     // 将 <br> 转为换行符
     html = html.replace(/<br\s*\/?>/gi, '\n');
@@ -1676,7 +1680,7 @@ export default function ChatPage() {
                           return (
                             <button
                               key={member.userId}
-                              onClick={() => handleSelectMention(member.userId, member.user?.nickname || '用户')}
+                              onClick={() => handleSelectMention(member.userId, member.nickname || member.user?.nickname || '用户')}
                               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition text-left"
                             >
                               <div className="w-8 h-8 rounded-lg bg-biu-primary/15 flex items-center justify-center text-biu-primary text-xs font-bold shrink-0">
