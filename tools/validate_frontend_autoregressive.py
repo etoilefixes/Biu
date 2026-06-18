@@ -472,7 +472,7 @@ def test_api_interceptor():
     # 后端 auth 中间件从 Authorization: Bearer {token} 获取
     check(cat, "Token注入与后端验证匹配", True)
 
-    # baseURL: http://localhost:3001/api
+    # baseURL: http://localhost:3000/api
     # 后端路由前缀: /api
     check(cat, "API baseURL与后端路由前缀匹配", True)
 
