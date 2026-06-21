@@ -39,7 +39,19 @@ export async function quickSendMessage(userId: string, targetUserId: string, con
       content,
       type: 'text',
     },
-    include: { sender: true },
+    // 仅选择安全字段，排除 passwordHash（原 include: { sender: true } 返回完整 User）
+    include: {
+      sender: {
+        select: {
+          id: true,
+          username: true,
+          nickname: true,
+          avatar: true,
+          status: true,
+          isSystem: true,
+        },
+      },
+    },
   });
 
   return message;
