@@ -108,9 +108,33 @@ export default function AIChatPage() {
       }
       setToast({ message: data.message || '消息发送失败', type: 'error' });
     });
+    // 注册 onChatAck：ack 到达说明服务器已收到消息，将 sending 改为 sent
+    // 否则超时定时器会误判消息发送失败
+    socketService.onChatAck((data) => {
+      const { messages } = useChatStore.getState();
+      const sendingMsg = messages.find(
+        (m) =>
+          (m as any)._status === 'sending' &&
+          m.conversationId === data.conversationId
+      );
+      if (sendingMsg) {
+        useChatStore.setState((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === sendingMsg.id ? { ...m, _status: 'sent' as const } : m
+          ),
+        }));
+      }
+    });
+    // 注册 onChatStream：AI 流式回复通过 chat:stream 事件推送
+    // 原实现未注册此事件，导致 AI 工作台完全无法显示流式回复
+    socketService.onChatStream((data) => {
+      useChatStore.getState().handleStreamEvent(data);
+    });
     return () => {
       socketService.offMessage();
       socketService.offChatError();
+      socketService.offChatAck();
+      socketService.offChatStream();
     };
   }, []);
 
