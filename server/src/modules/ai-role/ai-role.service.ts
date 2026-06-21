@@ -274,7 +274,7 @@ async function ensureAiRoleUser(role: { id: string; name: string; avatar: string
     }
     // 确保 AI 徽章存在
     try {
-      await badgeService.assignBadge(user.id, 'AI');
+      await badgeService.assignBadgeSystem(user.id, 'AI');
     } catch {
       // 徽章已存在，忽略
     }
@@ -298,7 +298,7 @@ async function ensureAiRoleUser(role: { id: string; name: string; avatar: string
 
   // 自动分配 AI 身份徽章
   try {
-    await badgeService.assignBadge(user.id, 'AI');
+    await badgeService.assignBadgeSystem(user.id, 'AI');
   } catch {
     // 徽章已存在或徽章类型未初始化，忽略
   }
