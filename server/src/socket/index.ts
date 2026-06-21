@@ -18,6 +18,8 @@ export function getIo(): Server {
 
 // 延迟确认离线，避免短暂断连导致频繁 online/offline 闪烁
 const OFFLINE_DELAY_MS = 5000;
+// 在线状态键 TTL（秒）— 与心跳 TTL 一致，确保进程崩溃或网络断开时键能自动过期
+const ONLINE_TTL_SEC = 300;
 const offlineTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export async function setupSocket(server: Server) {
@@ -44,8 +46,10 @@ export async function setupSocket(server: Server) {
         offlineTimers.delete(userId);
       }
 
-      await redis.set(`user:socket:${userId}`, socket.id);
-      await redis.set(`user:status:${userId}`, 'online');
+      // 连接时给 socket/status key 设置 TTL，防止进程崩溃时键永久残留
+      await redis.set(`user:socket:${userId}`, socket.id, { EX: ONLINE_TTL_SEC });
+      await redis.set(`user:status:${userId}`, 'online', { EX: ONLINE_TTL_SEC });
+      await redis.set(`user:online:${userId}`, 'online', { EX: ONLINE_TTL_SEC });
       server.emit('user:online', { userId });
 
       registerChatHandlers(server, socket);
@@ -58,8 +62,10 @@ export async function setupSocket(server: Server) {
           // 再次确认该用户确实没有其他活跃连接
           const currentSocketId = await redis.get(`user:socket:${userId}`);
           if (currentSocketId === socket.id) {
+            // 同步清理三套在线状态键，保持一致性
             await redis.del(`user:socket:${userId}`);
             await redis.set(`user:status:${userId}`, 'offline');
+            await redis.del(`user:online:${userId}`);
             server.emit('user:offline', { userId });
           }
         }, OFFLINE_DELAY_MS);
