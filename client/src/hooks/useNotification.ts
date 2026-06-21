@@ -51,40 +51,46 @@ export function useNotification() {
   });
 
   // 通知触发函数（供 chatStore 调用）
-  const notifyRef = useRef((message: Message) => {
-    if (!globalEnabled) return;
-    if (!user) return;
-    // 不通知自己的消息
-    if (message.senderId === user.id) return;
+  // 使用 ref + useEffect 模式避免闭包陷阱：ref 初始值只在挂载时设置一次，
+  // 后续状态变化时通过 useEffect 更新 ref.current，使其始终引用最新闭包
+  const notifyRef = useRef((_message: Message) => {});
 
-    const conversationId = message.conversationId;
+  useEffect(() => {
+    notifyRef.current = (message: Message) => {
+      if (!globalEnabled) return;
+      if (!user) return;
+      // 不通知自己的消息
+      if (message.senderId === user.id) return;
 
-    // 检查会话是否免打扰
-    if (isConversationMuted(conversationId)) return;
+      const conversationId = message.conversationId;
 
-    // 检查窗口是否聚焦
-    if (document.hasFocus()) return;
+      // 检查会话是否免打扰
+      if (isConversationMuted(conversationId)) return;
 
-    const conversation = conversations.find((c) => c.id === conversationId);
-    const convName = conversation?.name || '私聊';
-    const showPreview = isConversationShowPreview(conversationId);
+      // 检查窗口是否聚焦
+      if (document.hasFocus()) return;
 
-    const body = showPreview
-      ? message.content.slice(0, 100)
-      : '收到一条新消息';
+      const conversation = conversations.find((c) => c.id === conversationId);
+      const convName = conversation?.name || '私聊';
+      const showPreview = isConversationShowPreview(conversationId);
 
-    // 播放提示音
-    playSound.current();
+      const body = showPreview
+        ? message.content.slice(0, 100)
+        : '收到一条新消息';
 
-    // 发送桌面通知
-    if (window.electronAPI?.showNotification) {
-      window.electronAPI.showNotification({
-        title: convName,
-        body,
-        conversationId,
-      });
-    }
-  });
+      // 播放提示音
+      playSound.current();
+
+      // 发送桌面通知
+      if (window.electronAPI?.showNotification) {
+        window.electronAPI.showNotification({
+          title: convName,
+          body,
+          conversationId,
+        });
+      }
+    };
+  }, [globalEnabled, user, conversations, isConversationMuted, isConversationShowPreview]);
 
   return notifyRef;
 }
