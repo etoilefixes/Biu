@@ -2,6 +2,37 @@ import { prisma } from '../../config/database';
 import { generateConversationBiuId } from '../../utils/biuId';
 
 export async function quickSendMessage(userId: string, targetUserId: string, content: string) {
+  // 入参校验：防止绕过好友系统向任意非好友发消息
+  // 1. 不能给自己发消息
+  if (userId === targetUserId) {
+    throw new Error('不能给自己发消息');
+  }
+
+  // 2. 目标用户必须存在
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, isSystem: true },
+  });
+  if (!targetUser) {
+    throw new Error('目标用户不存在');
+  }
+
+  // 3. 双方必须是好友（系统用户除外，允许向系统用户发消息）
+  if (!targetUser.isSystem) {
+    const friendship = await prisma.friendRequest.findFirst({
+      where: {
+        OR: [
+          { fromUserId: userId, toUserId: targetUserId, status: 'accepted' },
+          { fromUserId: targetUserId, toUserId: userId, status: 'accepted' },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!friendship) {
+      throw new Error('只能向好友发送消息，请先添加好友');
+    }
+  }
+
   let conversation = await prisma.conversation.findFirst({
     where: {
       type: 'private',
