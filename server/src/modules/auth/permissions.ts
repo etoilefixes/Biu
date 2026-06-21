@@ -76,10 +76,9 @@ interface HasPermissionUser {
 
 /**
  * 判断用户是否拥有某个系统级权限
- * 优先拦截非活跃用户
+ * 基于角色映射，status 字段为用户在线状态（online/offline/away），不影响权限判断
  */
 export function hasSystemPermission(user: HasPermissionUser, permission: Permission): boolean {
-  if (user.status !== 'active') return false;
   const permissions = SYSTEM_ROLE_PERMISSIONS[user.role as SystemRole] ?? [];
   return permissions.includes(permission);
 }
@@ -210,7 +209,11 @@ export function canSendMessage(
 ): boolean {
   if (conversation.type === 'system') return false;
 
-  if (conversation.type === 'private') return true;
+  // 私聊必须校验成员身份，防止 IDOR 攻击
+  // （原实现无条件返回 true，攻击者可向任意 conversationId 的私聊注入伪造消息）
+  if (conversation.type === 'private') {
+    return !!member;
+  }
 
   if (conversation.type === 'group') {
     if (!member) return false;
