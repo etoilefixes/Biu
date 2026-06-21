@@ -41,9 +41,19 @@ export async function searchUsers(keyword: string, currentUserId: string) {
 }
 
 export async function updateProfile(userId: string, data: { nickname?: string; avatar?: string }) {
+  // 字段白名单过滤：仅允许更新 nickname 和 avatar，防止 Mass Assignment 提权
+  // （原实现直接透传 data，攻击者可传 { role: 'super_admin' } 自行提权）
+  const safeData: { nickname?: string; avatar?: string } = {};
+  if (typeof data.nickname === 'string') {
+    safeData.nickname = data.nickname;
+  }
+  if (typeof data.avatar === 'string') {
+    safeData.avatar = data.avatar;
+  }
+
   const user = await prisma.user.update({
     where: { id: userId },
-    data,
+    data: safeData,
     select: {
       id: true,
       biuId: true,
