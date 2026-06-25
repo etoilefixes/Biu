@@ -34,6 +34,14 @@ export async function getConversations(userId: string) {
   });
 
   const result = [];
+  const convIds = memberships.map(m => m.conversation.id);
+
+  // 批量获取已读状态，避免 N+1 查询
+  const reads = await prisma.conversationRead.findMany({
+    where: { conversationId: { in: convIds }, userId },
+  });
+  const readMap = new Map(reads.map(r => [r.conversationId, r]));
+
   for (const m of memberships) {
     const conv = m.conversation;
     const lastMsg = conv.messages[0];
@@ -49,13 +57,7 @@ export async function getConversations(userId: string) {
       },
     });
 
-    // Check mention status
-    const conversationRead = await prisma.conversationRead.findFirst({
-      where: {
-        conversationId: conv.id,
-        userId,
-      },
-    });
+    const conversationRead = readMap.get(conv.id);
 
     result.push({
       id: conv.id,
