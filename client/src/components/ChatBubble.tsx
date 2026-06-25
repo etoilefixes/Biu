@@ -12,6 +12,45 @@ import { formatExactTime } from '../utils/time';
 const remarkPlugins = [remarkGfm];
 const rehypePlugins = [rehypeHighlight];
 
+/** 纯文本 Markdown 渲染 — 提取为 memo 组件，避免每条消息片段都实例化 ReactMarkdown */
+const defaultComponents = {
+  pre: ({ children, ...props }: any) => (
+    <div className="relative group/code">
+      <pre {...props} className="chat-pre-block">{children}</pre>
+      <button
+        onClick={(e) => {
+          const preEl = e.currentTarget.parentElement?.querySelector('code');
+          const codeText = preEl?.textContent || '';
+          navigator.clipboard.writeText(codeText);
+        }}
+        className="absolute top-2 right-2 px-2 py-1 rounded-md bg-white/10 text-gray-400 text-[10px] font-body opacity-0 group-hover/code:opacity-100 hover:bg-white/20 transition-all"
+      >
+        复制
+      </button>
+    </div>
+  ),
+  code: ({ className, children, ...props }: any) => {
+    const isInline = !className;
+    if (isInline) {
+      return <code className="chat-inline-code" {...props}>{children}</code>;
+    }
+    return <code className={className} {...props}>{children}</code>;
+  },
+};
+
+const MarkdownText = React.memo(function MarkdownText({ content }: { content: string }) {
+  if (!content) return null;
+  return (
+    <ReactMarkdown
+      remarkPlugins={remarkPlugins}
+      rehypePlugins={rehypePlugins}
+      components={defaultComponents}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+});
+
 /** 根据系统消息的 action 和 cardData 生成展示文本 */
 function getSystemMessageText(cardType: string | null, cardData: SystemCardData | null): string {
   if (!cardData) return '';
@@ -250,42 +289,7 @@ export default React.memo(function ChatBubble({ message, isSelf, onCopy, onDelet
               <div className="text-sm break-words font-body leading-relaxed chat-markdown">
                 {renderedContent.map((part, i) => {
                   if (typeof part === 'string') {
-                    // 空字符串跳过
-                    if (!part) return null;
-                    // 纯文本部分走 ReactMarkdown
-                    return (
-                      <ReactMarkdown
-                        key={i}
-                        remarkPlugins={remarkPlugins}
-                        rehypePlugins={rehypePlugins}
-                        components={{
-                          pre: ({ children, ...props }: any) => (
-                            <div className="relative group/code">
-                              <pre {...props} className="chat-pre-block">{children}</pre>
-                              <button
-                                onClick={(e) => {
-                                  const preEl = e.currentTarget.parentElement?.querySelector('code');
-                                  const codeText = preEl?.textContent || '';
-                                  navigator.clipboard.writeText(codeText);
-                                }}
-                                className="absolute top-2 right-2 px-2 py-1 rounded-md bg-white/10 text-gray-400 text-[10px] font-body opacity-0 group-hover/code:opacity-100 hover:bg-white/20 transition-all"
-                              >
-                                复制
-                              </button>
-                            </div>
-                          ),
-                          code: ({ className, children, ...props }: any) => {
-                            const isInline = !className;
-                            if (isInline) {
-                              return <code className="chat-inline-code" {...props}>{children}</code>;
-                            }
-                            return <code className={className} {...props}>{children}</code>;
-                          },
-                        }}
-                      >
-                        {part}
-                      </ReactMarkdown>
-                    );
+                    return <MarkdownText key={i} content={part} />;
                   }
                   // @ 提及 span 直接渲染
                   return part;

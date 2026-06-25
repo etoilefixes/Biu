@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { useFriendStore } from '../store/friendStore';
 import api from '../services/api';
 import GlassCard from '../components/GlassCard';
+import GlassConfirm from '../components/GlassConfirm';
 import Toast from '../components/Toast';
 import UserBadge from '../components/UserBadge';
 import AvatarWithBadge from '../components/AvatarWithBadge';
@@ -21,6 +22,7 @@ export default function ContactsPage() {
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const [previewUser, setPreviewUser] = useState<User | null>(null);
   const [previewAnchor, setPreviewAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const { loadConversations, addConversationOptimistic, replaceTempConversation } = useChatStore();
   const user = useAuthStore((s) => s.user);
   const {
@@ -109,7 +111,13 @@ export default function ContactsPage() {
   };
 
   const handleDeleteFriend = async (friendId: string) => {
-    if (!confirm('确定要删除这个好友吗？')) return;
+    setDeleteConfirm(friendId);
+  };
+
+  const confirmDeleteFriend = async () => {
+    const friendId = deleteConfirm;
+    if (!friendId) return;
+    setDeleteConfirm(null);
     try {
       await api.delete(`/friends/${friendId}`);
       setToast({ message: '已删除好友', type: 'success' });
@@ -426,6 +434,15 @@ export default function ContactsPage() {
           )}
         </div>
       </div>
+      <GlassConfirm
+        open={deleteConfirm !== null}
+        title="删除好友"
+        message="确定要删除这个好友吗？此操作不可撤销。"
+        confirmText="删除"
+        danger
+        onConfirm={confirmDeleteFriend}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </>
   );
 }

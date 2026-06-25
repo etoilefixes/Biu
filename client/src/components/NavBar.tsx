@@ -7,6 +7,7 @@ import { useNotificationStore } from '../store/notificationStore';
 import Toast from './Toast';
 import { IconChat, IconContacts, IconLogout, IconEdit, IconSettings, IconX, IconCrown, IconRobot, IconPlus, IconTrash, IconRefresh, IconCheck } from './Icons';
 import GlassCard from './GlassCard';
+import GlassConfirm from './GlassConfirm';
 import GlassSelect from './GlassSelect';
 import AvatarWithBadge from './AvatarWithBadge';
 import UserBadge from './UserBadge';
@@ -41,8 +42,14 @@ export default function NavBar() {
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [messagePreview, setMessagePreview] = useState(true);
-  const [markdownEnabled, setMarkdownEnabled] = useState(true);
+  const [messagePreview, setMessagePreview] = useState(() => {
+    const stored = localStorage.getItem('biu_messagePreview');
+    return stored !== null ? stored === 'true' : true;
+  });
+  const [markdownEnabled, setMarkdownEnabled] = useState(() => {
+    const stored = localStorage.getItem('biu_markdownEnabled');
+    return stored !== null ? stored === 'true' : true;
+  });
   const [settingsTab, setSettingsTab] = useState<'general' | 'ai'>('general');
 
   const { globalEnabled: notificationEnabled, setGlobalEnabled: setNotificationEnabled, soundEnabled, setSoundEnabled, showPreview: notifShowPreview } = useNotificationStore();
@@ -53,6 +60,15 @@ export default function NavBar() {
       inputRef.current.select();
     }
   }, [editing]);
+
+  // 持久化设置到 localStorage
+  useEffect(() => {
+    localStorage.setItem('biu_messagePreview', String(messagePreview));
+  }, [messagePreview]);
+
+  useEffect(() => {
+    localStorage.setItem('biu_markdownEnabled', String(markdownEnabled));
+  }, [markdownEnabled]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -498,6 +514,9 @@ function AiSettingsPanel() {
   const [testingModelId, setTestingModelId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ modelId: string; success: boolean; message: string; models?: string[] } | null>(null);
 
+  // 删除确认
+  const [deleteModelConfirm, setDeleteModelConfirm] = useState<any>(null);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -686,7 +705,13 @@ function AiSettingsPanel() {
   };
 
   const handleDeleteModel = async (m: any) => {
-    if (!confirm(`确定删除模型「${m.name}」？`)) return;
+    setDeleteModelConfirm(m);
+  };
+
+  const confirmDeleteModel = async () => {
+    const m = deleteModelConfirm;
+    if (!m) return;
+    setDeleteModelConfirm(null);
     try {
       await api.delete(`/ai-roles/models/${m.id}`);
       setToast({ message: '模型已删除', type: 'success' });
@@ -1104,6 +1129,15 @@ function AiSettingsPanel() {
       >
         {saving ? '保存中...' : '保存配置'}
       </button>
+      <GlassConfirm
+        open={deleteModelConfirm !== null}
+        title="删除模型"
+        message={`确定删除模型「${deleteModelConfirm?.name || ''}」？此操作不可撤销。`}
+        confirmText="删除"
+        danger
+        onConfirm={confirmDeleteModel}
+        onCancel={() => setDeleteModelConfirm(null)}
+      />
     </div>
   );
 }
