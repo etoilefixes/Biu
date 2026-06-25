@@ -136,19 +136,22 @@ export async function handleFriendRequest(
 
     // 发送"新朋友"欢迎伪消息
     try {
-      await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          senderId: 'system',
-          content: '',
-          type: 'card',
-          cardType: 'friend_welcome',
-          cardData: JSON.stringify({
-            title: '新朋友',
-            body: '我们已成功添加为好友，现在可以开始聊天啦~',
-          }),
-        },
-      });
+      const systemUser = await prisma.user.findFirst({ where: { isSystem: true } });
+      if (systemUser) {
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            senderId: systemUser.id,
+            content: '',
+            type: 'card',
+            cardType: 'friend_welcome',
+            cardData: JSON.stringify({
+              title: '新朋友',
+              body: '我们已成功添加为好友，现在可以开始聊天啦~',
+            }),
+          },
+        });
+      }
     } catch (err) {
       console.error('Failed to send friend welcome message:', err);
     }
@@ -252,7 +255,8 @@ export async function getFriends(userId: string) {
 }
 
 export async function deleteFriend(userId: string, friendId: string) {
-  if (friendId === 'system') {
+  const systemUser = await prisma.user.findFirst({ where: { isSystem: true } });
+  if (systemUser && friendId === systemUser.id) {
     throw new Error('无法删除系统账号');
   }
 

@@ -4,11 +4,19 @@ import { io } from '../../socket';
 import { generateConversationBiuId } from '../../utils/biuId';
 import { canAccessAdmin, canUpdateUserRole, canUpdateOfficialStatus, Permission, hasSystemPermission } from '../auth/permissions';
 
-const SYSTEM_USER_ID = 'system';
+/** 获取系统用户 ID。用于过滤/保护系统用户，以及作为系统操作的 actor。 */
+async function getSystemUserId(): Promise<string | null> {
+  const systemUser = await prisma.user.findFirst({
+    where: { isSystem: true },
+    select: { id: true },
+  });
+  return systemUser?.id ?? null;
+}
 
 export async function isOfficialUser(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  return canAccessAdmin(user!);
+  if (!user) return false;
+  return canAccessAdmin(user);
 }
 
 export async function getAllUsers(officialUserId: string) {
@@ -16,7 +24,7 @@ export async function getAllUsers(officialUserId: string) {
   if (!user || !hasSystemPermission(user, Permission.UserRead)) throw new Error('无权限');
 
   const users = await prisma.user.findMany({
-    where: { id: { not: SYSTEM_USER_ID } },
+    where: { isSystem: false },
     include: { badges: { include: { badge: true } } },
     orderBy: { createdAt: 'desc' },
   });
@@ -43,7 +51,9 @@ export async function getAllUsers(officialUserId: string) {
 export async function deleteUser(officialUserId: string, targetUserId: string) {
   const user = await prisma.user.findUnique({ where: { id: officialUserId } });
   if (!user || !hasSystemPermission(user, Permission.UserDelete)) throw new Error('无权限');
-  if (targetUserId === SYSTEM_USER_ID) throw new Error('无法删除系统用户');
+
+  const systemUserId = await getSystemUserId();
+  if (systemUserId && targetUserId === systemUserId) throw new Error('无法删除系统用户');
   if (targetUserId === officialUserId) throw new Error('不能删除自己');
 
   await prisma.user.delete({ where: { id: targetUserId } });
@@ -98,22 +108,26 @@ export async function sendBroadcast(
   if (!user || !hasSystemPermission(user, Permission.OfficialBroadcast)) throw new Error('无权限');
 
   const allUsers = await prisma.user.findMany({
-    where: { id: { not: SYSTEM_USER_ID } },
+    where: { isSystem: false },
     select: { id: true },
   });
+
+  const systemUserId = await getSystemUserId();
 
   const results = [];
 
   for (const u of allUsers) {
+    // 如果没有系统用户则使用 officialUserId 作为 creator
+    const creatorId = systemUserId || officialUserId;
     const conversation = await prisma.conversation.create({
       data: {
         biuId: generateConversationBiuId(),
         type: 'private',
-        creatorId: SYSTEM_USER_ID,
-        ownerId: SYSTEM_USER_ID,
+        creatorId,
+        ownerId: creatorId,
         members: {
           create: [
-            { userId: SYSTEM_USER_ID },
+            { userId: creatorId },
             { userId: u.id },
           ],
         },

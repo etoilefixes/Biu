@@ -6,8 +6,17 @@ import { generateConversationBiuId } from '../../utils/biuId';
 
 const SALT_ROUNDS = 10;
 const BIU_ID_START = 100001;
-const SYSTEM_USER_ID = 'system';
 const MAX_BIU_ID_RETRIES = 3;
+
+/** 获取系统用户 ID（从数据库查询 isSystem=true 的真实记录） */
+async function getSystemUserId(txClient?: any): Promise<string | null> {
+  const db = txClient || prisma;
+  const systemUser = await db.user.findFirst({
+    where: { isSystem: true },
+    select: { id: true },
+  });
+  return systemUser?.id ?? null;
+}
 
 /**
  * 生成下一个用户 BiuId（纯数字编号，如 100001Biu、100002Biu）
@@ -86,6 +95,7 @@ export async function register(data: { username: string; password: string; nickn
       const result = await prisma.$transaction(async (tx) => {
         const biuId = await generateUserBiuId(tx);
         const convBiuId = generateConversationBiuId();
+        const systemUserId = await getSystemUserId(tx);
 
         // 3a. 创建用户
         const user = await tx.user.create({
@@ -93,35 +103,37 @@ export async function register(data: { username: string; password: string; nickn
           include: { badges: { include: { badge: true } } },
         });
 
-        // 3b. 创建与系统用户的好友关系
-        await tx.friendRequest.create({
-          data: { fromUserId: SYSTEM_USER_ID, toUserId: user.id, status: 'accepted' },
-        });
+        // 3b. 创建与系统用户的好友关系（系统用户不存在则跳过）
+        if (systemUserId) {
+          await tx.friendRequest.create({
+            data: { fromUserId: systemUserId, toUserId: user.id, status: 'accepted' },
+          });
 
-        // 3c. 创建与系统用户的欢迎会话
-        const conversation = await tx.conversation.create({
-          data: {
-            biuId: convBiuId,
-            type: 'private',
-            creatorId: SYSTEM_USER_ID,
-            ownerId: SYSTEM_USER_ID,
-            members: {
-              create: [
-                { userId: SYSTEM_USER_ID },
-                { userId: user.id },
-              ],
+          // 3c. 创建与系统用户的欢迎会话
+          const conversation = await tx.conversation.create({
+            data: {
+              biuId: convBiuId,
+              type: 'private',
+              creatorId: systemUserId,
+              ownerId: systemUserId,
+              members: {
+                create: [
+                  { userId: systemUserId },
+                  { userId: user.id },
+                ],
+              },
             },
-          },
-        });
+          });
 
-        // 3d. 发送欢迎消息
-        await tx.message.create({
-          data: {
-            conversationId: conversation.id,
-            senderId: SYSTEM_USER_ID,
-            content: `欢迎加入 Biu团队！这里是 Biu 系统通知，有任何问题都可以随时联系我们 🎉`,
-          },
-        });
+          // 3d. 发送欢迎消息
+          await tx.message.create({
+            data: {
+              conversationId: conversation.id,
+              senderId: systemUserId,
+              content: `欢迎加入 Biu团队！这里是 Biu 系统通知，有任何问题都可以随时联系我们 🎉`,
+            },
+          });
+        }
 
         return user;
       });
