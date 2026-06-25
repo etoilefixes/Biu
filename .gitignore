@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .superpowers/
+.workbuddy/
 
 # Windows 误产生的空文件
 nul
@@ -19,3 +20,9 @@ dogfood-output/
 *.apk
 *.msi
 *.exe
+
+# docs 下临时性产出物（auto-optimizer 文档、bug 报告、mermaid 图）
+docs/auto-optimizer-*.md
+docs/bug-audit-report.html
+docs/class-diagram.mermaid
+docs/sequence-diagram.mermaid
