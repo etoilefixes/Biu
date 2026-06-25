@@ -16,6 +16,7 @@ import officialRoutes from './modules/official/official.routes';
 import aiRoutes from './modules/ai/ai.routes';
 import aiRoleRoutes from './modules/ai-role/ai-role.routes';
 import notificationRoutes from './modules/notification/notification.routes';
+import docsRoutes from './modules/docs/docs.routes';
 import { setupSocket } from './socket';
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api/official', officialRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/ai-roles', aiRoleRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/docs', docsRoutes);
 
 app.use(errorHandler);
 
