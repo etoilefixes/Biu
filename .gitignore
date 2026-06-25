@@ -26,3 +26,6 @@ docs/auto-optimizer-*.md
 docs/bug-audit-report.html
 docs/class-diagram.mermaid
 docs/sequence-diagram.mermaid
+
+# biu-auto-optimizer 运行时产物（reports / snapshots）
+biu-auto-optimizer/.biu-opt/

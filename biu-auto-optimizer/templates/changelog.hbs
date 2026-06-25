@@ -1,0 +1,57 @@
+# Changelog
+
+> 所有值得注意的变更将记录在此文件中。
+>
+> 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
+> 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## [{{version}}] — {{date}}
+
+{{#if grouped.breaking.length}}
+### 💥 BREAKING CHANGES
+
+{{#each grouped.breaking}}
+- **{{type}}{{#if scope}}({{scope}}){{/if}}:** {{description}} ({{hash}} by @{{author}})
+{{/each}}
+
+{{/if}}
+{{#if grouped.features.length}}
+### ✨ Features
+
+{{#each grouped.features}}
+- {{description}} ({{hash}} by @{{author}})
+{{/each}}
+
+{{/if}}
+{{#if grouped.fixes.length}}
+### 🐛 Fixes
+
+{{#each grouped.fixes}}
+- {{description}} ({{hash}} by @{{author}})
+{{/each}}
+
+{{/if}}
+{{#if grouped.security.length}}
+### 🔒 Security
+
+{{#each grouped.security}}
+- {{description}} ({{hash}} by @{{author}})
+{{/each}}
+
+{{/if}}
+{{#if grouped.chores.length}}
+### 🧹 Chores
+
+{{#each grouped.chores}}
+- **{{type}}{{#if scope}}({{scope}}){{/if}}:** {{description}} ({{hash}} by @{{author}})
+{{/each}}
+
+{{/if}}
+{{#if grouped.other.length}}
+### 📦 Other
+
+{{#each grouped.other}}
+- {{description}} ({{hash}} by @{{author}})
+{{/each}}
+
+{{/if}}

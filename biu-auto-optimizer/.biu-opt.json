@@ -1,0 +1,51 @@
+{
+  "rootDir": ".",
+  "thresholds": {
+    "rollback": 0.05,
+    "lintErrors": 0.05,
+    "securityCritical": 0,
+    "securityHigh": 0,
+    "performanceDegradation": 0.05,
+    "complexityMax": 15,
+    "typeCoverageMin": 0.95,
+    "ciBuildTimeIncrease": 0.20
+  },
+  "analyzers": {
+    "code-review": { "enabled": true },
+    "security-scan": { "enabled": true },
+    "dependency-check": { "enabled": true },
+    "performance": { "enabled": true, "options": { "endpoints": ["http://localhost:3000/api/health"] } },
+    "n-plus-one": { "enabled": true },
+    "complexity": { "enabled": true },
+    "lighthouse": { "enabled": false, "options": { "url": "http://localhost:5173" } },
+    "type-coverage": { "enabled": true },
+    "ci-baseline": { "enabled": false },
+    "duplicate-code": { "enabled": true },
+    "solid-violations": { "enabled": true },
+    "git-knowledge": { "enabled": true },
+    "dep-health": { "enabled": true },
+    "ui-regression": { "enabled": false },
+    "dead-code": { "enabled": true },
+    "monorepo-deps": { "enabled": true }
+  },
+  "autoFix": {
+    "enabled": true,
+    "createBranch": true,
+    "autoMergeLowRisk": false,
+    "maxFilesPerFix": 20
+  },
+  "nightly": {
+    "enabled": true,
+    "schedule": "02:00",
+    "autoCreatePR": false
+  },
+  "dashboard": {
+    "enabled": false,
+    "port": 4000
+  },
+  "reporting": {
+    "formats": ["cli", "json"],
+    "outputDir": ".biu-opt/reports"
+  },
+  "workspaces": ["shared", "server", "client"]
+}

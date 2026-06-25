@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biu Auto-Optimizer — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b1121; color: #e2e8f0; min-height: 100vh; }
+    .navbar { background: #1e293b; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 100; }
+    .navbar .logo { font-size: 20px; font-weight: 700; color: #38bdf8; }
+    .navbar .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #94a3b8; }
+    .navbar .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #1e293b; border-radius: 12px; padding: 20px; }
+    .stat-card .stat-value { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
+    .stat-card .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-card .stat-change { font-size: 12px; margin-top: 4px; }
+    .stat-change.up { color: #ef4444; }
+    .stat-change.down { color: #22c55e; }
+    .stat-change.neutral { color: #94a3b8; }
+    .stat-card.errors .stat-value { color: #ef4444; }
+    .stat-card.security .stat-value { color: #f97316; }
+    .stat-card.deps .stat-value { color: #8b5cf6; }
+    .stat-card.coverage .stat-value { color: #22c55e; }
+    .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .chart-panel { background: #1e293b; border-radius: 12px; padding: 20px; }
+    .chart-panel h3 { font-size: 13px; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
+    .chart-panel canvas { max-height: 320px; }
+    .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .range-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .range-tab { padding: 6px 16px; border-radius: 6px; border: 1px solid #334155; background: transparent; color: #94a3b8; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+    .range-tab:hover { background: #334155; }
+    .range-tab.active { background: #38bdf8; color: #0f172a; border-color: #38bdf8; font-weight: 600; }
+    .refresh-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .refresh-bar .timer { font-size: 12px; color: #475569; }
+    .refresh-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+    .refresh-btn:hover { background: #334155; color: #e2e8f0; }
+    .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+    .empty-state .emoji { font-size: 48px; margin-bottom: 12px; }
+    @media (max-width: 900px) { .summary-row { grid-template-columns: repeat(2, 1fr); } .charts, .chart-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="logo">⚡ Biu Auto-Optimizer</div>
+    <div class="status"><span class="dot"></span> Live</div>
+  </div>
+
+  <div class="container">
+    <div class="refresh-bar">
+      <div class="range-tabs">
+        <button class="range-tab active" data-range="7">7 天</button>
+        <button class="range-tab" data-range="30">30 天</button>
+        <button class="range-tab" data-range="90">90 天</button>
+      </div>
+      <div>
+        <span class="timer" id="timer">Last refresh: --</span>
+        <button class="refresh-btn" onclick="refresh()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="summary-row" id="summaryRow"></div>
+
+    <div class="charts">
+      <div class="chart-panel">
+        <h3>📈 复杂度趋势 (Lint Errors)</h3>
+        <canvas id="trendChart"></canvas>
+      </div>
+      <div class="chart-panel">
+        <h3>🔒 安全漏洞分布</h3>
+        <canvas id="securityChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-panel">
+        <h3>📦 过期依赖趋势</h3>
+        <canvas id="depsChart"></canvas>
+      </div>
+      <div class="chart-panel">
+        <h3>📊 类别总览</h3>
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </div>
+
+    <div class="empty-state" id="emptyState">
+      <div class="emoji">📭</div>
+      <p>暂无快照数据，运行 <code>biu-opt run</code> 开始分析</p>
+    </div>
+  </div>
+
+<script>
+let currentRange = 7;
+let trendChart, securityChart, depsChart, categoryChart;
+let refreshTimer;
+
+const darkBg = '#0f172a';
+const gridColor = '#1e293b';
+const textColor = '#64748b';
+
+const baseOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 }, usePointStyle: true, pointStyleWidth: 8, padding: 12 } } },
+  scales: { x: { ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: gridColor } }, y: { ticks: { color: textColor, font: { size: 10 } }, grid: { color: gridColor }, beginAtZero: true } },
+  elements: { point: { radius: 2, hoverRadius: 5 }, line: { tension: 0.3 } }
+};
+
+async function refresh() {
+  try {
+    const res = await fetch(`/api/trends?range=${currentRange}`);
+    const data = await res.json();
+    render(data);
+    document.getElementById('timer').textContent = 'Last refresh: ' + new Date().toLocaleTimeString();
+    document.getElementById('emptyState').style.display = data.trends.length === 0 ? 'block' : 'none';
+  } catch(e) {
+    console.error('Refresh failed:', e);
+  }
+}
+
+async function loadSummary() {
+  try {
+    const res = await fetch('/api/summary');
+    const data = await res.json();
+    if (!data.available) return;
+    const m = data.current.metrics;
+    const d = data.delta || {};
+    document.getElementById('summaryRow').innerHTML =
+      `<div class="stat-card errors"><div class="stat-value">${m.lintErrors}</div><div class="stat-label">Lint Errors</div>${deltaHtml(d.lintErrors)}</div>` +
+      `<div class="stat-card security"><div class="stat-value">${m.securityVulnerabilities.critical + m.securityVulnerabilities.high}</div><div class="stat-label">Vulnerabilities (C+H)</div>${deltaHtml(d.securityCritical + d.securityHigh)}</div>` +
+      `<div class="stat-card deps"><div class="stat-value">${m.outdatedDependencies}</div><div class="stat-label">Outdated Deps</div>${deltaHtml(d.outdatedDeps)}</div>` +
+      `<div class="stat-card coverage"><div class="stat-value">${(m.typeCoveragePercent ? (m.typeCoveragePercent * 100).toFixed(1) : '--')}%</div><div class="stat-label">Type Coverage</div><div class="stat-change neutral">Estimated</div></div>`;
+  } catch(e) {
+    console.error('Summary load failed:', e);
+  }
+}
+
+function deltaHtml(val) {
+  if (val == null) return '<div class="stat-change neutral">--</div>';
+  if (val > 0) return `<div class="stat-change up">↑ ${val}</div>`;
+  if (val < 0) return `<div class="stat-change down">↓ ${Math.abs(val)}</div>`;
+  return '<div class="stat-change neutral">→ 0</div>';
+}
+
+function render(data) {
+  const trends = data.trends.reverse();
+  const labels = trends.map(t => t.id.slice(-12));
+
+  // Trend chart (lint errors over time)
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Lint Errors', data: trends.map(t => t.lintErrors), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true },
+        { label: 'Lint Warnings', data: trends.map(t => t.lintWarnings), borderColor: '#f97316', backgroundColor: 'transparent', fill: false, borderDash: [4, 4] }
+      ]
+    },
+    options: baseOptions
+  });
+
+  // Security chart (stacked bar)
+  if (securityChart) securityChart.destroy();
+  securityChart = new Chart(document.getElementById('securityChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Critical', data: trends.map(t => t.securityCritical), backgroundColor: '#ef4444' },
+        { label: 'High', data: trends.map(t => t.securityHigh), backgroundColor: '#f97316' },
+        { label: 'Moderate', data: trends.map(t => t.securityModerate), backgroundColor: '#3b82f6' }
+      ]
+    },
+    options: { ...baseOptions, scales: { ...baseOptions.scales, x: { stacked: true, ticks: baseOptions.scales.x.ticks, grid: baseOptions.scales.x.grid }, y: { stacked: true, ticks: baseOptions.scales.y.ticks, grid: baseOptions.scales.y.grid } } }
+  });
+
+  // Deps chart
+  if (depsChart) depsChart.destroy();
+  depsChart = new Chart(document.getElementById('depsChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Outdated Deps', data: trends.map(t => t.outdatedDeps), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true }
+      ]
+    },
+    options: baseOptions
+  });
+
+  // Category overview from latest snapshot
+  if (categoryChart) categoryChart.destroy();
+  const latest = trends[trends.length - 1] || {};
+  categoryChart = new Chart(document.getElementById('categoryChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Lint Errors', 'Lint Warnings', 'Vuln C+H', 'Outdated'],
+      datasets: [{
+        data: [latest.lintErrors || 0, latest.lintWarnings || 0, (latest.securityCritical || 0) + (latest.securityHigh || 0), latest.outdatedDeps || 0],
+        backgroundColor: ['#ef4444', '#f97316', '#dc2626', '#8b5cf6'],
+        borderColor: '#0f172a',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 }, padding: 16, usePointStyle: true, pointStyleWidth: 8 } } }
+    }
+  });
+}
+
+// Range tabs
+document.querySelectorAll('.range-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.range-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRange = parseInt(btn.dataset.range);
+    refresh();
+  });
+});
+
+// Auto-refresh
+function startAutoRefresh() {
+  refresh();
+  loadSummary();
+  refreshTimer = setInterval(() => { refresh(); loadSummary(); }, 5000);
+}
+
+startAutoRefresh();
+</script>
+</body>
+</html>
