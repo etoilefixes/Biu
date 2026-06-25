@@ -198,10 +198,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // 流式恢复：如果该会话仍有活跃的流式输出（用户切换走又切回），重新插入占位消息
     const activeStream = get().streamingMessages.get(conversation.id);
     if (activeStream?.isStreaming) {
+      const effectiveSenderId = activeStream.senderId ?? useAuthStore.getState().user?.id ?? '';
       const streamMsg: Message = {
         id: `stream_${conversation.id}`,
         conversationId: conversation.id,
-        senderId: activeStream.senderId ?? '',
+        senderId: effectiveSenderId,
         content: activeStream.content,
         type: 'text',
         createdAt: new Date().toISOString(),
@@ -214,7 +215,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     // Now mark as read (after messages are fetched with the anchor)
-    api.put(`/conversations/${conversation.id}/read`).catch(() => {});
+    api.put(`/conversations/${conversation.id}/read`).catch((err) => {
+      console.warn('[ChatStore] Failed to mark conversation as read:', err?.message);
+    });
     socketService.markRead(conversation.id);
   },
 
@@ -222,16 +225,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentConversation } = get();
     if (!currentConversation) return;
 
+    const effectiveSenderId = senderId || useAuthStore.getState().user?.id || '';
+
     const tempId = `temp_${Date.now()}_${++tempIdCounter}`;
     const optimisticMessage: Message = {
       id: tempId,
       conversationId: currentConversation.id,
-      senderId: senderId || '',
+      senderId: effectiveSenderId,
       content,
       type: type as 'text',
       createdAt: new Date().toISOString(),
       _status: 'sending',
-      _tempSender: senderId || '',
+      _tempSender: effectiveSenderId,
     } as any;
 
     set((state) => ({ messages: [...state.messages, optimisticMessage] }));
@@ -449,7 +454,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   markAllRead: () => {
     set({ unreadMap: {}, totalUnread: 0 });
-    api.put('/conversations/read-all').catch(() => {});
+    api.put('/conversations/read-all').catch((err) => {
+      console.warn('[ChatStore] Failed to mark all as read:', err?.message);
+    });
   },
 
   deleteConversation: (conversationId) => {
@@ -464,7 +471,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         totalUnread: calcTotalUnread(newMap),
       };
     });
-    api.delete(`/conversations/${conversationId}`).catch(() => {});
+    api.delete(`/conversations/${conversationId}`).catch((err) => {
+      console.warn('[ChatStore] Failed to delete conversation:', err?.message);
+    });
   },
 
   setTyping: (conversationId, userId) => {
